@@ -9,7 +9,7 @@ sys.path.insert(0, str(project_root))
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    ContextTypes
+    MessageHandler, filters, ContextTypes
 )
 from sqlalchemy.orm import Session
 from sqlalchemy import func
