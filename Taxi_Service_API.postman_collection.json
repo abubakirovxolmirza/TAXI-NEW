@@ -1,0 +1,539 @@
+{
+  "info": {
+    "name": "Taxi Service API",
+    "description": "Complete API collection for Taxi Service Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telephone\": \"+998901111111\",\n  \"name\": \"Test User\",\n  \"password\": \"password123\",\n  \"confirm_password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set(\"access_token\", jsonData.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telephone\": \"+998901111111\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"old_password\": \"password123\",\n  \"new_password\": \"newpassword123\",\n  \"confirm_password\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/change-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "change-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Regions",
+      "item": [
+        {
+          "name": "Get All Regions",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/regions/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "regions", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Districts by Region",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/regions/1/districts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "regions", "1", "districts"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Taxi Orders",
+      "item": [
+        {
+          "name": "Create Taxi Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Test User\",\n  \"telephone\": \"+998901111111\",\n  \"from_region_id\": 1,\n  \"from_district_id\": 1,\n  \"to_region_id\": 2,\n  \"to_district_id\": 5,\n  \"passengers\": 2,\n  \"date\": \"07.11.2025\",\n  \"time_start\": \"10:00\",\n  \"time_end\": \"12:00\",\n  \"note\": \"Please call when you arrive\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "taxi-orders", ""]
+            }
+          }
+        },
+        {
+          "name": "Get My Taxi Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "taxi-orders", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Active Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/active",
+              "host": ["{{base_url}}"],
+              "path": ["api", "taxi-orders", "active"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": 1,\n  \"order_type\": \"taxi\",\n  \"cancellation_reason\": \"Changed my mind\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "taxi-orders", "cancel"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Driver",
+      "item": [
+        {
+          "name": "Apply as Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Driver Name\",\n  \"car_model\": \"Chevrolet Lacetti\",\n  \"car_number\": \"01A123BC\",\n  \"license_photo\": \"uploads/licenses/license_1.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/driver/apply",
+              "host": ["{{base_url}}"],
+              "path": ["api", "driver", "apply"]
+            }
+          }
+        },
+        {
+          "name": "Check Driver Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/driver/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "driver", "status"]
+            }
+          }
+        },
+        {
+          "name": "Get Driver Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/driver/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "driver", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Get Driver Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/driver/statistics",
+              "host": ["{{base_url}}"],
+              "path": ["api", "driver", "statistics"]
+            }
+          }
+        },
+        {
+          "name": "Get New Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/driver/orders/new",
+              "host": ["{{base_url}}"],
+              "path": ["api", "driver", "orders", "new"]
+            }
+          }
+        },
+        {
+          "name": "Accept Order",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/driver/orders/accept/taxi/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "driver", "orders", "accept", "taxi", "1"]
+            }
+          }
+        },
+        {
+          "name": "Complete Order",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/driver/orders/complete/taxi/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "driver", "orders", "complete", "taxi", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Pending Applications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/driver-applications",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "driver-applications"]
+            }
+          }
+        },
+        {
+          "name": "Review Application",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": 1,\n  \"approved\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/driver-applications/review",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "driver-applications", "review"]
+            }
+          }
+        },
+        {
+          "name": "Get All Drivers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/drivers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "drivers"]
+            }
+          }
+        },
+        {
+          "name": "Add Driver Balance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": 1,\n  \"amount\": 100000.00,\n  \"description\": \"Initial balance\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/drivers/balance/add",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "drivers", "balance", "add"]
+            }
+          }
+        },
+        {
+          "name": "Create Pricing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_region_id\": 1,\n  \"to_region_id\": 3,\n  \"service_type\": \"taxi\",\n  \"base_price\": 80000.00,\n  \"discount_1_passenger\": 5.00,\n  \"discount_2_passengers\": 10.00,\n  \"discount_3_passengers\": 15.00,\n  \"discount_full_car\": 25.00\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/pricing",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "pricing"]
+            }
+          }
+        },
+        {
+          "name": "Broadcast Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target\": \"all\",\n  \"title\": \"System Update\",\n  \"message\": \"The system will be updated tonight.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/broadcast",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "broadcast"]
+            }
+          }
+        },
+        {
+          "name": "Get Order Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/orders/statistics?period=daily",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "orders", "statistics"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "daily"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ratings",
+      "item": [
+        {
+          "name": "Rate Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": 1,\n  \"order_id\": 1,\n  \"order_type\": \"taxi\",\n  \"rating\": 5,\n  \"comment\": \"Excellent service!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ratings/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ratings", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Driver Ratings",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/ratings/driver/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ratings", "driver", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/unread",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "unread"]
+            }
+          }
+        },
+        {
+          "name": "Mark as Read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/1/mark-read",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "1", "mark-read"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
