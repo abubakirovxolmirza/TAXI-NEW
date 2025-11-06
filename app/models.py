@@ -59,7 +59,7 @@ class User(Base):
     taxi_orders = relationship("TaxiOrder", back_populates="user", foreign_keys="TaxiOrder.user_id")
     delivery_orders = relationship("DeliveryOrder", back_populates="user", foreign_keys="DeliveryOrder.user_id")
     ratings_given = relationship("Rating", back_populates="user", foreign_keys="Rating.user_id")
-    driver_application = relationship("DriverApplication", back_populates="user", uselist=False)
+    driver_application = relationship("DriverApplication", back_populates="user", foreign_keys="DriverApplication.user_id", uselist=False)
 
 
 class Driver(Base):
