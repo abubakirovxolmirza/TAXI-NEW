@@ -2,6 +2,13 @@
 Create a superadmin user
 Usage: python scripts/create_superadmin.py
 """
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from app.database import SessionLocal
 from app.models import User, UserRole
 from app.auth import get_password_hash
