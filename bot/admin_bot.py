@@ -34,15 +34,47 @@ async def admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check if user is admin
     db = SessionLocal()
+    
+    # First, try to find user by telegram_chat_id
     user = db.query(User).filter(
         User.telegram_chat_id == chat_id,
         User.role.in_([UserRole.ADMIN, UserRole.SUPERADMIN])
     ).first()
-    db.close()
     
+    # If not found, ask for phone number to link account
     if not user:
-        await update.message.reply_text("⚠️ You are not authorized to use this bot.")
+        # Check if this is a registration attempt
+        if context.args and len(context.args) > 0:
+            phone = context.args[0]
+            user = db.query(User).filter(
+                User.telephone == phone,
+                User.role.in_([UserRole.ADMIN, UserRole.SUPERADMIN])
+            ).first()
+            
+            if user:
+                user.telegram_chat_id = chat_id
+                db.commit()
+                db.close()
+                await update.message.reply_text(
+                    f"✅ Successfully linked your Telegram account!\n\n"
+                    f"👤 Name: {user.name}\n"
+                    f"📱 Phone: {user.telephone}\n"
+                    f"🔑 Role: {user.role.value}\n\n"
+                    f"Send /start again to access the admin panel."
+                )
+                return
+        
+        db.close()
+        await update.message.reply_text(
+            "⚠️ You are not authorized to use this bot.\n\n"
+            "If you are an admin, link your account using:\n"
+            "`/start +998901234567`\n\n"
+            "Replace with your registered admin phone number.",
+            parse_mode="Markdown"
+        )
         return
+    
+    db.close()
     
     keyboard = [
         [InlineKeyboardButton("📋 Pending Applications", callback_data="pending_apps")],
