@@ -12,8 +12,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200
     
     # Telegram
-    TELEGRAM_BOT_TOKEN: str
-    TELEGRAM_ADMIN_GROUP_ID: str
+    USER_BOT_TOKEN: str
+    ADMIN_BOT_TOKEN: str
+    TELEGRAM_ADMIN_CHAT_ID: str
     
     # File Upload
     UPLOAD_DIR: str = "uploads"

@@ -1,4 +1,11 @@
 import logging
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
@@ -187,7 +194,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     """Run the bot"""
     # Create application
-    application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
+    application = Application.builder().token(settings.USER_BOT_TOKEN).build()
     
     # Add conversation handler
     conv_handler = ConversationHandler(
