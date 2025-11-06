@@ -79,6 +79,7 @@ echo "TEST 3: Get Current User Profile"
 echo "=========================================="
 info "GET $API_URL/auth/me"
 PROFILE=$(curl -s -X GET "$API_URL/auth/me" \
+    -H "accept: application/json" \
     -H "Authorization: Bearer $ADMIN_TOKEN")
 
 echo "$PROFILE" | jq '.'
@@ -95,13 +96,15 @@ echo "=========================================="
 echo "TEST 4: Register New User (Future Driver)"
 echo "=========================================="
 NEW_PHONE="+998905555555"
+NEW_PASSWORD="driver123"
 info "POST $API_URL/auth/register"
 REGISTER_RESPONSE=$(curl -s -X POST "$API_URL/auth/register" \
     -H "Content-Type: application/json" \
     -d "{
         \"telephone\": \"$NEW_PHONE\",
         \"name\": \"Test Driver User\",
-        \"password\": \"driver123\",
+        \"password\": \"$NEW_PASSWORD\",
+        \"confirm_password\": \"$NEW_PASSWORD\",
         \"language\": \"uz_latin\"
     }")
 
@@ -123,7 +126,7 @@ USER_LOGIN=$(curl -s -X POST "$API_URL/auth/login" \
     -H "Content-Type: application/json" \
     -d "{
         \"telephone\": \"$NEW_PHONE\",
-        \"password\": \"driver123\"
+        \"password\": \"$NEW_PASSWORD\"
     }")
 
 echo "$USER_LOGIN" | jq '.'
