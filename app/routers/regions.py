@@ -96,15 +96,28 @@ def calculate_price(
         else:
             discount = 0
         
-        final_price = base_price * (1 - discount / 100)
+        # Calculate price per person after discount
+        price_per_person = base_price * (1 - discount / 100)
+        # Total price for all passengers
+        total_price = price_per_person * passengers
+        
+        return {
+            "from_region_id": from_region_id,
+            "to_region_id": to_region_id,
+            "service_type": service_type,
+            "base_price": str(base_price),
+            "passengers": passengers,
+            "discount_percentage": str(discount),
+            "price_per_person": str(price_per_person),
+            "total_price": str(total_price)
+        }
     else:
-        final_price = base_price
-    
-    return {
-        "from_region_id": from_region_id,
-        "to_region_id": to_region_id,
-        "service_type": service_type,
-        "base_price": str(base_price),
-        "passengers": passengers,
-        "final_price": str(final_price)
-    }
+        # For delivery, no passenger count
+        return {
+            "from_region_id": from_region_id,
+            "to_region_id": to_region_id,
+            "service_type": service_type,
+            "base_price": str(base_price),
+            "passengers": passengers,
+            "total_price": str(base_price)
+        }
