@@ -110,7 +110,9 @@ class TaxiOrderCreate(BaseModel):
     from_district_id: int
     to_region_id: int
     to_district_id: int
+    pickup_location: Optional[str] = None  # Client's pickup location address
     passengers: int = Field(..., ge=1, le=4)
+    is_mail_delivery: bool = False  # True if sending package/item instead of passenger
     date: str  # dd.mm.yyyy
     time_start: str  # HH:MM
     time_end: str  # HH:MM
@@ -133,7 +135,9 @@ class TaxiOrderResponse(BaseModel):
     from_district_id: int
     to_region_id: int
     to_district_id: int
+    pickup_location: Optional[str]
     passengers: int
+    is_mail_delivery: bool
     date: str
     time_start: str
     time_end: str
