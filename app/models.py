@@ -165,6 +165,12 @@ class DeliveryOrder(Base):
     from_district_id = Column(Integer, ForeignKey("districts.id"), nullable=False)
     to_region_id = Column(Integer, ForeignKey("regions.id"), nullable=False)
     to_district_id = Column(Integer, ForeignKey("districts.id"), nullable=False)
+    pickup_latitude = Column(Numeric(10, 8), nullable=True)  # Sender's pickup latitude
+    pickup_longitude = Column(Numeric(11, 8), nullable=True)  # Sender's pickup longitude
+    pickup_address = Column(Text, nullable=True)  # Sender's address
+    dropoff_latitude = Column(Numeric(10, 8), nullable=True)  # Receiver's drop-off latitude
+    dropoff_longitude = Column(Numeric(11, 8), nullable=True)  # Receiver's drop-off longitude
+    dropoff_address = Column(Text, nullable=True)  # Receiver's address
     item_type = Column(SQLEnum(ItemType), nullable=False)
     date = Column(String(10), nullable=False)  # dd.mm.yyyy
     time_start = Column(String(5), nullable=False)  # HH:MM
