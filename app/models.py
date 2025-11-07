@@ -124,7 +124,9 @@ class TaxiOrder(Base):
     from_district_id = Column(Integer, ForeignKey("districts.id"), nullable=False)
     to_region_id = Column(Integer, ForeignKey("regions.id"), nullable=False)
     to_district_id = Column(Integer, ForeignKey("districts.id"), nullable=False)
-    pickup_location = Column(Text, nullable=True)  # Client's pickup location address
+    pickup_latitude = Column(Numeric(10, 8), nullable=True)  # Client's pickup latitude
+    pickup_longitude = Column(Numeric(11, 8), nullable=True)  # Client's pickup longitude
+    pickup_address = Column(Text, nullable=True)  # Optional address description
     passengers = Column(Integer, nullable=False)  # 1, 2, 3, 4
     is_mail_delivery = Column(Boolean, default=False, nullable=False)  # True if sending package/item instead of passenger
     date = Column(String(10), nullable=False)  # dd.mm.yyyy
