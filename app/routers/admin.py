@@ -14,7 +14,7 @@ from app.schemas import (
     DriverApplicationResponse, DriverApplicationReview,
     DriverResponse, PricingCreate, PricingUpdate, PricingResponse,
     BalanceAdd, BalanceTransactionResponse, BroadcastMessage,
-    FeedbackResponse, UserResponse
+    FeedbackResponse, UserResponse, UserRoleUpdate
 )
 from app.auth import get_current_admin, get_current_superadmin
 from app.utils import create_notification
@@ -456,6 +456,45 @@ def add_admin(
         message="You have been granted admin privileges.",
         notification_type="role_updated",
         user_id=user_id
+    )
+    
+    return user
+
+
+@router.post("/users/update-role", response_model=UserResponse)
+def update_user_role(
+    role_data: UserRoleUpdate,
+    current_user: User = Depends(get_current_superadmin),
+    db: Session = Depends(get_db)
+):
+    """Update user role (superadmin only)"""
+    user = db.query(User).filter(User.id == role_data.user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Prevent changing own role
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot change your own role"
+        )
+    
+    old_role = user.role
+    user.role = role_data.role
+    db.commit()
+    db.refresh(user)
+    
+    # Notify user
+    create_notification(
+        db=db,
+        title="Role Updated",
+        message=f"Your role has been changed from {old_role.value} to {role_data.role.value}.",
+        notification_type="role_updated",
+        user_id=role_data.user_id
     )
     
     return user

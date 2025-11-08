@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_scheduled_datetime'
-down_revision = None  # Update this with your latest revision ID
+down_revision = '8c82182'  # Update this with the actual previous revision ID from 'alembic heads'
 branch_labels = None
 depends_on = None
 

@@ -45,6 +45,11 @@ class PasswordChange(BaseModel):
         return v
 
 
+class UserRoleUpdate(BaseModel):
+    user_id: int
+    role: UserRole
+
+
 class UserResponse(UserBase):
     id: int
     role: UserRole
