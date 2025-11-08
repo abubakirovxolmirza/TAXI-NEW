@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+import os
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -17,7 +19,7 @@ class Settings(BaseSettings):
     TELEGRAM_ADMIN_CHAT_ID: str
     
     # File Upload
-    UPLOAD_DIR: str = "uploads"
+    UPLOAD_DIR: str = os.path.join(os.getcwd(), "uploads")
     MAX_UPLOAD_SIZE: int = 5242880  # 5MB
     
     # Redis

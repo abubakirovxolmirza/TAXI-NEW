@@ -107,36 +107,56 @@ async def upload_profile_picture(
     db: Session = Depends(get_db)
 ):
     """Upload profile picture"""
-    # Validate file type
-    allowed_types = ["image/jpeg", "image/png", "image/jpg"]
-    if file.content_type not in allowed_types:
+    try:
+        # Validate file type
+        allowed_types = ["image/jpeg", "image/png", "image/jpg"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only JPEG and PNG images are allowed"
+            )
+        
+        # Validate file size
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        
+        if file_size > settings.MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File size exceeds maximum allowed size of {settings.MAX_UPLOAD_SIZE / 1024 / 1024}MB"
+            )
+        
+        # Create upload directory if not exists
+        upload_dir = Path(settings.UPLOAD_DIR) / "profiles"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        import time
+        file_extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+        filename = f"user_{current_user.id}_{int(time.time())}.{file_extension}"
+        file_path = upload_dir / filename
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Update user profile picture path - use relative path
+        relative_path = f"uploads/profiles/{filename}"
+        current_user.profile_picture = relative_path
+        db.commit()
+        
+        return {
+            "message": "Profile picture uploaded successfully",
+            "file_path": relative_path
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only JPEG and PNG images are allowed"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading file: {str(e)}"
         )
-    
-    # Create upload directory if not exists
-    upload_dir = Path(settings.UPLOAD_DIR) / "profile_pictures"
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Generate unique filename
-    file_extension = file.filename.split(".")[-1]
-    filename = f"user_{current_user.id}_{int(os.time.time())}.{file_extension}"
-    file_path = upload_dir / filename
-    
-    # Save file
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
-    # Update user profile picture path
-    relative_path = str(file_path).replace("\\", "/")
-    current_user.profile_picture = relative_path
-    db.commit()
-    
-    return {
-        "message": "Profile picture uploaded successfully",
-        "file_path": relative_path
-    }
 
 
 @router.post("/change-password")
