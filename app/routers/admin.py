@@ -111,6 +111,16 @@ def review_application(
     }
 
 
+@router.get("/users", response_model=List[UserResponse])
+def get_all_users(
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get all users"""
+    users = db.query(User).order_by(User.created_at.desc()).all()
+    return users
+
+
 @router.get("/drivers", response_model=List[DriverResponse])
 def get_all_drivers(
     current_user: User = Depends(get_current_admin),

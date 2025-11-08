@@ -118,6 +118,7 @@ class TaxiOrderCreate(BaseModel):
     date: str  # dd.mm.yyyy
     time_start: str  # HH:MM
     time_end: str  # HH:MM
+    scheduled_datetime: Optional[datetime] = None  # Scheduled pickup datetime (ISO format)
     note: Optional[str] = None
     
     @validator('to_region_id')
@@ -145,6 +146,7 @@ class TaxiOrderResponse(BaseModel):
     date: str
     time_start: str
     time_end: str
+    scheduled_datetime: Optional[datetime]  # Scheduled pickup datetime
     price: Decimal
     note: Optional[str]
     status: OrderStatus
@@ -176,6 +178,7 @@ class DeliveryOrderCreate(BaseModel):
     date: str  # dd.mm.yyyy
     time_start: str  # HH:MM
     time_end: str  # HH:MM
+    scheduled_datetime: Optional[datetime] = None  # Scheduled pickup datetime (ISO format)
     note: Optional[str] = None
 
 
@@ -200,6 +203,7 @@ class DeliveryOrderResponse(BaseModel):
     date: str
     time_start: str
     time_end: str
+    scheduled_datetime: Optional[datetime]  # Scheduled pickup datetime
     price: Decimal
     note: Optional[str]
     status: OrderStatus

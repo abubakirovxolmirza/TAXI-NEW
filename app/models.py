@@ -132,6 +132,7 @@ class TaxiOrder(Base):
     date = Column(String(10), nullable=False)  # dd.mm.yyyy
     time_start = Column(String(5), nullable=False)  # HH:MM
     time_end = Column(String(5), nullable=False)  # HH:MM
+    scheduled_datetime = Column(DateTime(timezone=True), nullable=True)  # Scheduled pickup datetime
     price = Column(Numeric(10, 2), nullable=False)
     note = Column(Text, nullable=True)
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
@@ -175,6 +176,7 @@ class DeliveryOrder(Base):
     date = Column(String(10), nullable=False)  # dd.mm.yyyy
     time_start = Column(String(5), nullable=False)  # HH:MM
     time_end = Column(String(5), nullable=False)  # HH:MM
+    scheduled_datetime = Column(DateTime(timezone=True), nullable=True)  # Scheduled pickup datetime
     price = Column(Numeric(10, 2), nullable=False)
     note = Column(Text, nullable=True)
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
