@@ -500,6 +500,117 @@ def update_user_role(
     return user
 
 
+@router.post("/users/{user_id}/deactivate")
+def deactivate_user(
+    user_id: int,
+    current_user: User = Depends(get_current_superadmin),
+    db: Session = Depends(get_db)
+):
+    """Deactivate/soft delete a user (superadmin only)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Prevent deactivating own account
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot deactivate your own account"
+        )
+    
+    user.is_active = False
+    db.commit()
+    
+    # Notify user
+    create_notification(
+        db=db,
+        title="Account Deactivated",
+        message="Your account has been deactivated by admin.",
+        notification_type="account_deactivated",
+        user_id=user_id
+    )
+    
+    return {
+        "success": True,
+        "message": f"User {user.name} has been deactivated",
+        "user_id": user_id
+    }
+
+
+@router.post("/users/{user_id}/activate")
+def activate_user(
+    user_id: int,
+    current_user: User = Depends(get_current_superadmin),
+    db: Session = Depends(get_db)
+):
+    """Activate a deactivated user (superadmin only)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    user.is_active = True
+    db.commit()
+    
+    # Notify user
+    create_notification(
+        db=db,
+        title="Account Activated",
+        message="Your account has been activated.",
+        notification_type="account_activated",
+        user_id=user_id
+    )
+    
+    return {
+        "success": True,
+        "message": f"User {user.name} has been activated",
+        "user_id": user_id
+    }
+
+
+@router.delete("/users/{user_id}")
+def delete_user_permanently(
+    user_id: int,
+    current_user: User = Depends(get_current_superadmin),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete a user (superadmin only) - USE WITH CAUTION"""
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Prevent deleting own account
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot delete your own account"
+        )
+    
+    user_name = user.name
+    user_telephone = user.telephone
+    
+    # Delete user (this will cascade delete related records based on your DB relationships)
+    db.delete(user)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"User {user_name} ({user_telephone}) has been permanently deleted",
+        "user_id": user_id
+    }
+
+
 @router.post("/users/{user_id}/reset-password")
 def reset_user_password(
     user_id: int,
