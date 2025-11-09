@@ -122,6 +122,7 @@ def get_user_from_token(token: str) -> Optional[User]:
     Returns None if token is invalid
     """
     from app.database import SessionLocal
+    from sqlalchemy.orm import joinedload
     
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -132,7 +133,8 @@ def get_user_from_token(token: str) -> Optional[User]:
         
         user_id = int(user_id_str)
         db = SessionLocal()
-        user = db.query(User).filter(User.id == user_id).first()
+        # Load driver_profile relationship
+        user = db.query(User).options(joinedload(User.driver_profile)).filter(User.id == user_id).first()
         db.close()
         
         if user and user.is_active:
