@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import shutil
@@ -281,6 +281,255 @@ def get_driver_statistics(
         "total_revenue": Decimal(str(total_taxi.revenue or 0)) + Decimal(str(total_delivery.revenue or 0)),
         "current_balance": driver.balance,
         "rating": driver.rating
+    }
+
+
+@router.get("/orders/my-orders")
+def get_my_orders(
+    status_filter: Optional[OrderStatus] = None,
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db)
+):
+    """Get driver's accepted and completed orders"""
+    driver = current_user.driver_profile
+    
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found"
+        )
+    
+    # Build query for taxi orders assigned to this driver
+    taxi_query = db.query(TaxiOrder).filter(TaxiOrder.driver_id == driver.id)
+    delivery_query = db.query(DeliveryOrder).filter(DeliveryOrder.driver_id == driver.id)
+    
+    # Apply status filter if provided
+    if status_filter:
+        taxi_query = taxi_query.filter(TaxiOrder.status == status_filter)
+        delivery_query = delivery_query.filter(DeliveryOrder.status == status_filter)
+    
+    taxi_orders = taxi_query.order_by(TaxiOrder.created_at.desc()).all()
+    delivery_orders = delivery_query.order_by(DeliveryOrder.created_at.desc()).all()
+    
+    return {
+        "taxi_orders": [
+            {
+                "id": order.id,
+                "type": "taxi",
+                "user_id": order.user_id,
+                "username": order.username,
+                "telephone": order.telephone,
+                "from_region_id": order.from_region_id,
+                "from_district_id": order.from_district_id,
+                "to_region_id": order.to_region_id,
+                "to_district_id": order.to_district_id,
+                "pickup_address": order.pickup_address,
+                "pickup_latitude": float(order.pickup_latitude) if order.pickup_latitude else None,
+                "pickup_longitude": float(order.pickup_longitude) if order.pickup_longitude else None,
+                "passengers": order.passengers,
+                "price": str(order.price),
+                "service_fee": str(order.service_fee),
+                "driver_earnings": str(order.driver_earnings),
+                "date": order.date,
+                "time_start": order.time_start,
+                "time_end": order.time_end,
+                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
+                "status": order.status.value,
+                "note": order.note,
+                "created_at": order.created_at.isoformat(),
+                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
+                "completed_at": order.completed_at.isoformat() if order.completed_at else None
+            }
+            for order in taxi_orders
+        ],
+        "delivery_orders": [
+            {
+                "id": order.id,
+                "type": "delivery",
+                "user_id": order.user_id,
+                "username": order.username,
+                "sender_telephone": order.sender_telephone,
+                "receiver_telephone": order.receiver_telephone,
+                "from_region_id": order.from_region_id,
+                "from_district_id": order.from_district_id,
+                "to_region_id": order.to_region_id,
+                "to_district_id": order.to_district_id,
+                "pickup_address": order.pickup_address,
+                "pickup_latitude": float(order.pickup_latitude) if order.pickup_latitude else None,
+                "pickup_longitude": float(order.pickup_longitude) if order.pickup_longitude else None,
+                "dropoff_address": order.dropoff_address,
+                "dropoff_latitude": float(order.dropoff_latitude) if order.dropoff_latitude else None,
+                "dropoff_longitude": float(order.dropoff_longitude) if order.dropoff_longitude else None,
+                "item_type": order.item_type.value,
+                "price": str(order.price),
+                "service_fee": str(order.service_fee),
+                "driver_earnings": str(order.driver_earnings),
+                "date": order.date,
+                "time_start": order.time_start,
+                "time_end": order.time_end,
+                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
+                "status": order.status.value,
+                "note": order.note,
+                "created_at": order.created_at.isoformat(),
+                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
+                "completed_at": order.completed_at.isoformat() if order.completed_at else None
+            }
+            for order in delivery_orders
+        ]
+    }
+
+
+@router.get("/orders/active")
+def get_active_orders(
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db)
+):
+    """Get driver's currently active (accepted) orders"""
+    driver = current_user.driver_profile
+    
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found"
+        )
+    
+    # Get only ACCEPTED orders
+    taxi_orders = db.query(TaxiOrder).filter(
+        TaxiOrder.driver_id == driver.id,
+        TaxiOrder.status == OrderStatus.ACCEPTED
+    ).order_by(TaxiOrder.accepted_at.desc()).all()
+    
+    delivery_orders = db.query(DeliveryOrder).filter(
+        DeliveryOrder.driver_id == driver.id,
+        DeliveryOrder.status == OrderStatus.ACCEPTED
+    ).order_by(DeliveryOrder.accepted_at.desc()).all()
+    
+    return {
+        "taxi_orders": [
+            {
+                "id": order.id,
+                "type": "taxi",
+                "user_id": order.user_id,
+                "username": order.username,
+                "telephone": order.telephone,
+                "from_region_id": order.from_region_id,
+                "from_district_id": order.from_district_id,
+                "to_region_id": order.to_region_id,
+                "to_district_id": order.to_district_id,
+                "pickup_address": order.pickup_address,
+                "pickup_latitude": float(order.pickup_latitude) if order.pickup_latitude else None,
+                "pickup_longitude": float(order.pickup_longitude) if order.pickup_longitude else None,
+                "passengers": order.passengers,
+                "price": str(order.price),
+                "service_fee": str(order.service_fee),
+                "driver_earnings": str(order.driver_earnings),
+                "date": order.date,
+                "time_start": order.time_start,
+                "time_end": order.time_end,
+                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
+                "status": order.status.value,
+                "note": order.note,
+                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None
+            }
+            for order in taxi_orders
+        ],
+        "delivery_orders": [
+            {
+                "id": order.id,
+                "type": "delivery",
+                "user_id": order.user_id,
+                "username": order.username,
+                "sender_telephone": order.sender_telephone,
+                "receiver_telephone": order.receiver_telephone,
+                "from_region_id": order.from_region_id,
+                "from_district_id": order.from_district_id,
+                "to_region_id": order.to_region_id,
+                "to_district_id": order.to_district_id,
+                "pickup_address": order.pickup_address,
+                "pickup_latitude": float(order.pickup_latitude) if order.pickup_latitude else None,
+                "pickup_longitude": float(order.pickup_longitude) if order.pickup_longitude else None,
+                "dropoff_address": order.dropoff_address,
+                "dropoff_latitude": float(order.dropoff_latitude) if order.dropoff_latitude else None,
+                "dropoff_longitude": float(order.dropoff_longitude) if order.dropoff_longitude else None,
+                "item_type": order.item_type.value,
+                "price": str(order.price),
+                "service_fee": str(order.service_fee),
+                "driver_earnings": str(order.driver_earnings),
+                "date": order.date,
+                "time_start": order.time_start,
+                "time_end": order.time_end,
+                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
+                "status": order.status.value,
+                "note": order.note,
+                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None
+            }
+            for order in delivery_orders
+        ]
+    }
+
+
+@router.get("/orders/history")
+def get_order_history(
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db)
+):
+    """Get driver's completed orders history"""
+    driver = current_user.driver_profile
+    
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found"
+        )
+    
+    # Get only COMPLETED orders
+    taxi_orders = db.query(TaxiOrder).filter(
+        TaxiOrder.driver_id == driver.id,
+        TaxiOrder.status == OrderStatus.COMPLETED
+    ).order_by(TaxiOrder.completed_at.desc()).all()
+    
+    delivery_orders = db.query(DeliveryOrder).filter(
+        DeliveryOrder.driver_id == driver.id,
+        DeliveryOrder.status == OrderStatus.COMPLETED
+    ).order_by(DeliveryOrder.completed_at.desc()).all()
+    
+    return {
+        "taxi_orders": [
+            {
+                "id": order.id,
+                "type": "taxi",
+                "username": order.username,
+                "from_region_id": order.from_region_id,
+                "to_region_id": order.to_region_id,
+                "passengers": order.passengers,
+                "price": str(order.price),
+                "service_fee": str(order.service_fee),
+                "driver_earnings": str(order.driver_earnings),
+                "date": order.date,
+                "status": order.status.value,
+                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
+                "completed_at": order.completed_at.isoformat() if order.completed_at else None
+            }
+            for order in taxi_orders
+        ],
+        "delivery_orders": [
+            {
+                "id": order.id,
+                "type": "delivery",
+                "username": order.username,
+                "from_region_id": order.from_region_id,
+                "to_region_id": order.to_region_id,
+                "item_type": order.item_type.value,
+                "price": str(order.price),
+                "service_fee": str(order.service_fee),
+                "driver_earnings": str(order.driver_earnings),
+                "date": order.date,
+                "status": order.status.value,
+                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
+                "completed_at": order.completed_at.isoformat() if order.completed_at else None
+            }
+            for order in delivery_orders
+        ]
     }
 
 
