@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test - Taxi Service</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #00ff00;
+            padding-left: 10px;
+        }
+        .log-entry.error {
+            border-left-color: #ff0000;
+            color: #ff0000;
+        }
+        .log-entry.info {
+            border-left-color: #00bfff;
+            color: #00bfff;
+        }
+        .log-entry.success {
+            border-left-color: #00ff00;
+            color: #00ff00;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚕 WebSocket Test - Taxi Service</h1>
+        
+        <div id="status" class="status disconnected">
+            ❌ Disconnected
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="messageCount">0</div>
+                <div class="stat-label">Messages Received</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="messageSent">0</div>
+                <div class="stat-label">Messages Sent</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="uptime">0s</div>
+                <div class="stat-label">Connection Time</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="connectBtn" onclick="connect()">🔌 Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>🔌 Disconnect</button>
+            <button id="pingBtn" onclick="sendPing()" disabled>📤 Send Ping</button>
+            <button id="viewOrderBtn" onclick="viewOrder()" disabled>👁️ View Order</button>
+            <button id="clearBtn" onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        // Configuration
+        const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMiIsImV4cCI6MTc2NTI3NTEyMn0.3xyA6Xw6BkTj9lq2ke7wk0r8lXcyCQ3T0rvlovJjENo";
+        // Use Nginx (port 80), not direct port 8000
+        const WS_URL = `ws://164.90.229.192/ws/driver/${TOKEN}`;
+
+        let ws = null;
+        let messageCount = 0;
+        let sentCount = 0;
+        let connectionTime = null;
+        let uptimeInterval = null;
+
+        // UI Elements
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const pingBtn = document.getElementById('pingBtn');
+        const viewOrderBtn = document.getElementById('viewOrderBtn');
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function updateStatus(status, message) {
+            statusEl.className = `status ${status}`;
+            statusEl.textContent = message;
+        }
+
+        function updateStats() {
+            document.getElementById('messageCount').textContent = messageCount;
+            document.getElementById('messageSent').textContent = sentCount;
+        }
+
+        function updateUptime() {
+            if (connectionTime) {
+                const seconds = Math.floor((Date.now() - connectionTime) / 1000);
+                document.getElementById('uptime').textContent = `${seconds}s`;
+            }
+        }
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('Already connected!', 'error');
+                return;
+            }
+
+            updateStatus('connecting', '⏳ Connecting...');
+            log(`🚀 Connecting to ${WS_URL}`, 'info');
+
+            try {
+                ws = new WebSocket(WS_URL);
+
+                ws.onopen = () => {
+                    updateStatus('connected', '✅ Connected');
+                    log('✅ WebSocket connection established!', 'success');
+                    
+                    connectionTime = Date.now();
+                    uptimeInterval = setInterval(updateUptime, 1000);
+
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    pingBtn.disabled = false;
+                    viewOrderBtn.disabled = false;
+                };
+
+                ws.onmessage = (event) => {
+                    messageCount++;
+                    updateStats();
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(`📩 Received: ${JSON.stringify(data, null, 2)}`, 'success');
+                        
+                        // Handle specific message types
+                        if (data.type === 'connected') {
+                            log(`🎉 Driver ID: ${data.driver_id}`, 'success');
+                        } else if (data.type === 'pong') {
+                            log('🏓 Pong received!', 'success');
+                        } else if (data.type === 'new_order') {
+                            log(`🚕 New order #${data.order.id} received!`, 'success');
+                        }
+                    } catch (e) {
+                        log(`📩 Received: ${event.data}`, 'info');
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    log(`❌ WebSocket error: ${error.message || 'Unknown error'}`, 'error');
+                    updateStatus('disconnected', '❌ Error');
+                };
+
+                ws.onclose = (event) => {
+                    log(`🔌 Connection closed. Code: ${event.code}, Reason: ${event.reason || 'No reason'}`, 'info');
+                    updateStatus('disconnected', '❌ Disconnected');
+                    
+                    if (uptimeInterval) {
+                        clearInterval(uptimeInterval);
+                        uptimeInterval = null;
+                    }
+                    connectionTime = null;
+
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    pingBtn.disabled = true;
+                    viewOrderBtn.disabled = true;
+                };
+
+            } catch (error) {
+                log(`❌ Failed to create WebSocket: ${error.message}`, 'error');
+                updateStatus('disconnected', '❌ Failed');
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                log('🔌 Disconnecting...', 'info');
+                ws.close();
+            }
+        }
+
+        function sendPing() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = { type: "ping" };
+                ws.send(JSON.stringify(message));
+                sentCount++;
+                updateStats();
+                log(`📤 Sent: ${JSON.stringify(message)}`, 'info');
+            } else {
+                log('❌ Not connected!', 'error');
+            }
+        }
+
+        function viewOrder() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const orderId = Math.floor(Math.random() * 1000) + 1;
+                const message = {
+                    type: "viewing_order",
+                    order_id: orderId,
+                    order_type: "taxi"
+                };
+                ws.send(JSON.stringify(message));
+                sentCount++;
+                updateStats();
+                log(`📤 Sent: ${JSON.stringify(message)}`, 'info');
+            } else {
+                log('❌ Not connected!', 'error');
+            }
+        }
+
+        function clearLog() {
+            logEl.innerHTML = '';
+            log('🗑️ Log cleared', 'info');
+        }
+
+        // Auto-connect on load
+        window.onload = () => {
+            log('🎯 WebSocket Test Page Loaded', 'success');
+            log(`📡 Target: ${WS_URL}`, 'info');
+            log('💡 Click "Connect" to start testing', 'info');
+        };
+
+        // Cleanup on page unload
+        window.onbeforeunload = () => {
+            if (ws) {
+                ws.close();
+            }
+        };
+    </script>
+</body>
+</html>
