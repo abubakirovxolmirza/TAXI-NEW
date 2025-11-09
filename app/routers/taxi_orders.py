@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/taxi-orders", tags=["Taxi Orders"])
 
 
 @router.post("/", response_model=TaxiOrderResponse, status_code=status.HTTP_201_CREATED)
-def create_taxi_order(
+async def create_taxi_order(
     order_data: TaxiOrderCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
