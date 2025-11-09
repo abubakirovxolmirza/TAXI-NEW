@@ -12,7 +12,7 @@ from decimal import Decimal
 
 # revision identifiers, used by Alembic.
 revision = 'add_service_fee'
-down_revision = 'add_scheduled_datetime'
+down_revision = '6d35d36c72cc'  # Points to the merge revision
 branch_labels = None
 depends_on = None
 
