@@ -93,13 +93,13 @@ async def create_taxi_order(
 
 
 @router.get("/", response_model=List[TaxiOrderResponse])
-def get_my_taxi_orders(
+def get_all_taxi_orders(
     status_filter: Optional[OrderStatus] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get current user's taxi orders"""
-    query = db.query(TaxiOrder).filter(TaxiOrder.user_id == current_user.id)
+    """Get all taxi orders"""
+    query = db.query(TaxiOrder)
     
     if status_filter:
         query = query.filter(TaxiOrder.status == status_filter)

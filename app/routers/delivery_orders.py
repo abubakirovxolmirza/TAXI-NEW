@@ -94,13 +94,13 @@ async def create_delivery_order(
 
 
 @router.get("/", response_model=List[DeliveryOrderResponse])
-def get_my_delivery_orders(
+def get_all_delivery_orders(
     status_filter: Optional[OrderStatus] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get current user's delivery orders"""
-    query = db.query(DeliveryOrder).filter(DeliveryOrder.user_id == current_user.id)
+    """Get all delivery orders"""
+    query = db.query(DeliveryOrder)
     
     if status_filter:
         query = query.filter(DeliveryOrder.status == status_filter)
