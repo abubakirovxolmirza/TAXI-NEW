@@ -115,8 +115,8 @@ class TaxiOrderCreate(BaseModel):
     from_district_id: int
     to_region_id: int
     to_district_id: int
-    pickup_latitude: Optional[float] = None  # Client's pickup latitude
-    pickup_longitude: Optional[float] = None  # Client's pickup longitude
+    pickup_latitude: Optional[str] = None  # Client's pickup latitude
+    pickup_longitude: Optional[str] = None  # Client's pickup longitude
     pickup_address: Optional[str] = None  # Optional address description
     passengers: int = Field(..., ge=1, le=4)
     is_mail_delivery: bool = False  # True if sending package/item instead of passenger
@@ -143,8 +143,8 @@ class TaxiOrderResponse(BaseModel):
     from_district_id: int
     to_region_id: int
     to_district_id: int
-    pickup_latitude: Optional[Decimal]
-    pickup_longitude: Optional[Decimal]
+    pickup_latitude: Optional[str]
+    pickup_longitude: Optional[str]
     pickup_address: Optional[str]
     passengers: int
     is_mail_delivery: bool
@@ -175,11 +175,11 @@ class DeliveryOrderCreate(BaseModel):
     from_district_id: int
     to_region_id: int
     to_district_id: int
-    pickup_latitude: Optional[float] = None  # Sender's pickup latitude
-    pickup_longitude: Optional[float] = None  # Sender's pickup longitude
+    pickup_latitude: Optional[str] = None  # Sender's pickup latitude
+    pickup_longitude: Optional[str] = None  # Sender's pickup longitude
     pickup_address: Optional[str] = None  # Sender's address
-    dropoff_latitude: Optional[float] = None  # Receiver's drop-off latitude
-    dropoff_longitude: Optional[float] = None  # Receiver's drop-off longitude
+    dropoff_latitude: Optional[str] = None  # Receiver's drop-off latitude
+    dropoff_longitude: Optional[str] = None  # Receiver's drop-off longitude
     dropoff_address: Optional[str] = None  # Receiver's address
     item_type: ItemType
     date: str  # dd.mm.yyyy
@@ -200,11 +200,11 @@ class DeliveryOrderResponse(BaseModel):
     from_district_id: int
     to_region_id: int
     to_district_id: int
-    pickup_latitude: Optional[Decimal]
-    pickup_longitude: Optional[Decimal]
+    pickup_latitude: Optional[str]
+    pickup_longitude: Optional[str]
     pickup_address: Optional[str]
-    dropoff_latitude: Optional[Decimal]
-    dropoff_longitude: Optional[Decimal]
+    dropoff_latitude: Optional[str]
+    dropoff_longitude: Optional[str]
     dropoff_address: Optional[str]
     item_type: ItemType
     date: str
