@@ -69,7 +69,7 @@ async def websocket_driver_endpoint(
                     if order_id:
                         manager.add_order_viewer(order_id, driver_id)
                         # Notify all viewers about viewer count
-                        viewer_count = manager.get_order_viewer_count(order_id)
+                        viewer_count = await manager.get_order_viewer_count(order_id)
                         await manager.broadcast_to_all_drivers({
                             "type": "viewer_count",
                             "order_id": order_id,
@@ -80,7 +80,7 @@ async def websocket_driver_endpoint(
                     order_id = data.get("order_id")
                     if order_id:
                         manager.remove_order_viewer(order_id, driver_id)
-                        viewer_count = manager.get_order_viewer_count(order_id)
+                        viewer_count = await manager.get_order_viewer_count(order_id)
                         await manager.broadcast_to_all_drivers({
                             "type": "viewer_count",
                             "order_id": order_id,
@@ -91,7 +91,7 @@ async def websocket_driver_endpoint(
                     order_id = data.get("order_id")
                     if order_id:
                         # Try to acquire lock
-                        if manager.try_lock_order(order_id, driver_id):
+                        if await manager.try_lock_order(order_id, driver_id):
                             await websocket.send_json({
                                 "type": "lock_acquired",
                                 "order_id": order_id,
@@ -171,7 +171,7 @@ async def websocket_user_endpoint(
 async def get_websocket_stats():
     """Get WebSocket connection statistics"""
     return {
-        "active_drivers": manager.get_active_driver_count(),
-        "active_users": manager.get_active_user_count(),
-        "total_connections": manager.get_active_driver_count() + manager.get_active_user_count()
+        "active_drivers": await manager.get_active_driver_count(),
+        "active_users": await manager.get_active_user_count(),
+        "total_connections": await manager.get_active_driver_count() + await manager.get_active_user_count()
     }

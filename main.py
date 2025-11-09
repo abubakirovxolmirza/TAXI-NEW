@@ -6,6 +6,21 @@ from app.routers import (
     admin, ratings, regions, notifications, feedback, websocket
 )
 from app.config import settings
+from app.websocket import manager
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events"""
+    # Startup: Initialize Redis
+    print("🚀 Starting up Taxi Service API...")
+    await manager.init_redis()
+    yield
+    # Shutdown: Cleanup Redis
+    print("🛑 Shutting down Taxi Service API...")
+    await manager.cleanup()
+
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -13,7 +28,8 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Taxi Service API with comprehensive features for users, drivers, and admins"
+    description="Taxi Service API with comprehensive features for users, drivers, and admins",
+    lifespan=lifespan
 )
 
 # CORS middleware

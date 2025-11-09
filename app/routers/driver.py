@@ -353,7 +353,7 @@ def get_new_orders(
 
 
 @router.post("/orders/accept/{order_type}/{order_id}")
-def accept_order(
+async def accept_order(
     order_type: str,
     order_id: int,
     current_user: User = Depends(get_current_driver),
@@ -416,7 +416,7 @@ def accept_order(
     db.refresh(order)
     
     # Release order lock
-    manager.release_order_lock(order_id)
+    await manager.release_order_lock(order_id)
     
     # Notify all drivers that this order is no longer available (WebSocket)
     import asyncio
