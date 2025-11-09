@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, N
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
+from decimal import Decimal
 import enum
 
 
@@ -134,6 +135,8 @@ class TaxiOrder(Base):
     time_end = Column(String(5), nullable=False)  # HH:MM
     scheduled_datetime = Column(DateTime(timezone=True), nullable=True)  # Scheduled pickup datetime
     price = Column(Numeric(10, 2), nullable=False)
+    service_fee = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # 8% platform fee
+    driver_earnings = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # Driver's portion after fee
     note = Column(Text, nullable=True)
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
     cancellation_reason = Column(Text, nullable=True)
@@ -178,6 +181,8 @@ class DeliveryOrder(Base):
     time_end = Column(String(5), nullable=False)  # HH:MM
     scheduled_datetime = Column(DateTime(timezone=True), nullable=True)  # Scheduled pickup datetime
     price = Column(Numeric(10, 2), nullable=False)
+    service_fee = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # 8% platform fee
+    driver_earnings = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # Driver's portion after fee
     note = Column(Text, nullable=True)
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
     cancellation_reason = Column(Text, nullable=True)

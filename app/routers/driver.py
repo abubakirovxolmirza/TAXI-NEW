@@ -18,6 +18,7 @@ from app.schemas import (
 from app.auth import get_current_user, get_current_driver
 from app.utils import check_driver_can_accept_order, create_notification
 from app.config import settings
+from app.websocket import manager
 
 router = APIRouter(prefix="/api/driver", tags=["Driver"])
 
@@ -414,7 +415,33 @@ def accept_order(
     db.commit()
     db.refresh(order)
     
-    # Notify user
+    # Release order lock
+    manager.release_order_lock(order_id)
+    
+    # Notify all drivers that this order is no longer available (WebSocket)
+    import asyncio
+    asyncio.create_task(manager.broadcast_to_all_drivers({
+        "type": "order_accepted",
+        "order_id": order.id,
+        "order_type": order_type,
+        "driver_id": driver.id
+    }))
+    
+    # Notify user via WebSocket
+    asyncio.create_task(manager.send_to_user(order.user_id, {
+        "type": "order_accepted",
+        "order_id": order.id,
+        "order_type": order_type,
+        "driver": {
+            "id": driver.id,
+            "name": driver.full_name,
+            "car_model": driver.car_model,
+            "car_number": driver.car_number,
+            "rating": float(driver.rating)
+        }
+    }))
+    
+    # Notify user via database notification
     create_notification(
         db=db,
         title="Order Accepted",

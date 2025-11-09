@@ -114,3 +114,29 @@ async def get_current_superadmin(current_user: User = Depends(get_current_user))
             detail="Not authorized. Superadmin access required."
         )
     return current_user
+
+
+def get_user_from_token(token: str) -> Optional[User]:
+    """
+    Get user from token (for WebSocket authentication)
+    Returns None if token is invalid
+    """
+    from app.database import SessionLocal
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id_str = payload.get("sub")
+        
+        if user_id_str is None:
+            return None
+        
+        user_id = int(user_id_str)
+        db = SessionLocal()
+        user = db.query(User).filter(User.id == user_id).first()
+        db.close()
+        
+        if user and user.is_active:
+            return user
+        return None
+    except:
+        return None

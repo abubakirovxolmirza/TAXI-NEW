@@ -153,6 +153,8 @@ class TaxiOrderResponse(BaseModel):
     time_end: str
     scheduled_datetime: Optional[datetime]  # Scheduled pickup datetime
     price: Decimal
+    service_fee: Decimal
+    driver_earnings: Decimal
     note: Optional[str]
     status: OrderStatus
     cancellation_reason: Optional[str]
@@ -210,6 +212,8 @@ class DeliveryOrderResponse(BaseModel):
     time_end: str
     scheduled_datetime: Optional[datetime]  # Scheduled pickup datetime
     price: Decimal
+    service_fee: Decimal
+    driver_earnings: Decimal
     note: Optional[str]
     status: OrderStatus
     cancellation_reason: Optional[str]

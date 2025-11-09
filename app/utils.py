@@ -1,7 +1,20 @@
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from app.models import Pricing, Driver, User, Notification
-from typing import Optional
+from typing import Optional, Tuple
+
+# Platform service fee percentage
+SERVICE_FEE_PERCENTAGE = Decimal("8.00")  # 8%
+
+
+def calculate_service_fee(price: Decimal) -> Tuple[Decimal, Decimal]:
+    """
+    Calculate service fee and driver earnings
+    Returns: (service_fee, driver_earnings)
+    """
+    service_fee = (price * SERVICE_FEE_PERCENTAGE) / Decimal("100.00")
+    driver_earnings = price - service_fee
+    return (service_fee, driver_earnings)
 
 
 def calculate_taxi_price(
@@ -109,8 +122,8 @@ def notify_all_drivers(db: Session, title: str, message: str):
         )
 
 
-def check_driver_can_accept_order(db: Session, driver_id: int, required_balance: Decimal = Decimal("0.00")) -> bool:
-    """Check if driver can accept orders (not blocked and has sufficient balance)"""
+def check_driver_can_accept_order(db: Session, driver_id: int) -> bool:
+    """Check if driver can accept orders (not blocked)"""
     driver = db.query(Driver).filter(Driver.id == driver_id).first()
     if not driver:
         return False
@@ -118,7 +131,7 @@ def check_driver_can_accept_order(db: Session, driver_id: int, required_balance:
     if driver.is_blocked:
         return False
     
-    if driver.balance < required_balance:
-        return False
+    # Allow acceptance if balance is sufficient (can be negative for credit)
+    # Minimum balance requirement removed - drivers can accept orders
     
     return True

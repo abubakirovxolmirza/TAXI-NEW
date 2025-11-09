@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
 from app.routers import (
     auth, taxi_orders, delivery_orders, driver,
-    admin, ratings, regions, notifications, feedback
+    admin, ratings, regions, notifications, feedback, websocket
 )
 from app.config import settings
 
@@ -35,6 +35,7 @@ app.include_router(ratings.router)
 app.include_router(regions.router)
 app.include_router(notifications.router)
 app.include_router(feedback.router)
+app.include_router(websocket.router)  # WebSocket router
 
 
 @app.get("/")

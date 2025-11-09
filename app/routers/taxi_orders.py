@@ -7,7 +7,8 @@ from app.database import get_db
 from app.models import User, TaxiOrder, OrderStatus, Driver
 from app.schemas import TaxiOrderCreate, TaxiOrderResponse, OrderCancellation
 from app.auth import get_current_user
-from app.utils import calculate_taxi_price, notify_all_drivers, create_notification
+from app.utils import calculate_taxi_price, notify_all_drivers, create_notification, calculate_service_fee
+from app.websocket import manager, convert_decimal_to_float
 
 router = APIRouter(prefix="/api/taxi-orders", tags=["Taxi Orders"])
 
@@ -26,6 +27,9 @@ def create_taxi_order(
         to_region_id=order_data.to_region_id,
         passengers=order_data.passengers
     )
+    
+    # Calculate service fee and driver earnings
+    service_fee, driver_earnings = calculate_service_fee(price)
     
     # Create order
     new_order = TaxiOrder(
@@ -46,6 +50,8 @@ def create_taxi_order(
         time_end=order_data.time_end,
         scheduled_datetime=order_data.scheduled_datetime,
         price=price,
+        service_fee=service_fee,
+        driver_earnings=driver_earnings,
         note=order_data.note,
         status=OrderStatus.PENDING
     )
@@ -54,12 +60,34 @@ def create_taxi_order(
     db.commit()
     db.refresh(new_order)
     
-    # Notify all drivers
+    # Notify all drivers via database
     notify_all_drivers(
         db=db,
         title="New Taxi Order",
         message=f"New taxi order from region {order_data.from_region_id} to {order_data.to_region_id}"
     )
+    
+    # Broadcast to all drivers via WebSocket
+    import asyncio
+    order_data_dict = {
+        "id": new_order.id,
+        "type": "taxi",
+        "from_region_id": new_order.from_region_id,
+        "to_region_id": new_order.to_region_id,
+        "passengers": new_order.passengers,
+        "price": float(new_order.price),
+        "service_fee": float(new_order.service_fee),
+        "driver_earnings": float(new_order.driver_earnings),
+        "date": new_order.date,
+        "time_start": new_order.time_start,
+        "time_end": new_order.time_end,
+        "scheduled_datetime": new_order.scheduled_datetime.isoformat() if new_order.scheduled_datetime else None,
+        "created_at": new_order.created_at.isoformat()
+    }
+    asyncio.create_task(manager.broadcast_to_all_drivers({
+        "type": "new_order",
+        "order": order_data_dict
+    }))
     
     return new_order
 
