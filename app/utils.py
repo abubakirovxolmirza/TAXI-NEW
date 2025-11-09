@@ -1,18 +1,33 @@
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from app.models import Pricing, Driver, User, Notification
+from app.models import Pricing, Driver, User, Notification, SystemSettings
 from typing import Optional, Tuple
 
-# Platform service fee percentage
-SERVICE_FEE_PERCENTAGE = Decimal("8.00")  # 8%
+# Default platform service fee percentage (fallback if not set in DB)
+DEFAULT_SERVICE_FEE_PERCENTAGE = Decimal("10.00")  # 10%
 
 
-def calculate_service_fee(price: Decimal) -> Tuple[Decimal, Decimal]:
+def get_service_fee_percentage(db: Session) -> Decimal:
+    """
+    Get current service fee percentage from database settings
+    Returns: Decimal percentage (e.g., 10.00 for 10%)
+    """
+    setting = db.query(SystemSettings).filter(
+        SystemSettings.setting_key == "service_fee_percentage"
+    ).first()
+    
+    if setting:
+        return Decimal(setting.setting_value)
+    return DEFAULT_SERVICE_FEE_PERCENTAGE
+
+
+def calculate_service_fee(price: Decimal, db: Session) -> Tuple[Decimal, Decimal]:
     """
     Calculate service fee and driver earnings
     Returns: (service_fee, driver_earnings)
     """
-    service_fee = (price * SERVICE_FEE_PERCENTAGE) / Decimal("100.00")
+    service_fee_percentage = get_service_fee_percentage(db)
+    service_fee = (price * service_fee_percentage) / Decimal("100.00")
     driver_earnings = price - service_fee
     return (service_fee, driver_earnings)
 

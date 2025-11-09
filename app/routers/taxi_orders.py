@@ -29,7 +29,7 @@ async def create_taxi_order(
     )
     
     # Calculate service fee and driver earnings
-    service_fee, driver_earnings = calculate_service_fee(price)
+    service_fee, driver_earnings = calculate_service_fee(price, db)
     
     # Create order
     new_order = TaxiOrder(

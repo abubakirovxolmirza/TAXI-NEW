@@ -8,16 +8,17 @@ from app.database import get_db
 from app.models import (
     User, Driver, DriverApplication, ApplicationStatus, UserRole,
     TaxiOrder, DeliveryOrder, OrderStatus, Pricing, BalanceTransaction,
-    Notification, Feedback
+    Notification, Feedback, SystemSettings
 )
 from app.schemas import (
     DriverApplicationResponse, DriverApplicationReview,
     DriverResponse, PricingCreate, PricingUpdate, PricingResponse,
     BalanceAdd, BalanceTransactionResponse, BroadcastMessage,
-    FeedbackResponse, UserResponse, UserRoleUpdate
+    FeedbackResponse, UserResponse, UserRoleUpdate,
+    ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse
 )
 from app.auth import get_current_admin, get_current_superadmin
-from app.utils import create_notification
+from app.utils import create_notification, get_service_fee_percentage
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -642,3 +643,68 @@ def reset_user_password(
     )
     
     return {"success": True, "message": "Password reset successfully"}
+
+
+@router.get("/settings/service-fee", response_model=ServiceFeeResponse)
+def get_service_fee(
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get current service fee percentage"""
+    service_fee_percentage = get_service_fee_percentage(db)
+    
+    setting = db.query(SystemSettings).filter(
+        SystemSettings.setting_key == "service_fee_percentage"
+    ).first()
+    
+    return {
+        "service_fee_percentage": service_fee_percentage,
+        "updated_at": setting.updated_at if setting else None,
+        "updated_by": setting.updated_by if setting else None
+    }
+
+
+@router.put("/settings/service-fee", response_model=ServiceFeeResponse)
+def update_service_fee(
+    fee_data: ServiceFeeUpdate,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update service fee percentage"""
+    setting = db.query(SystemSettings).filter(
+        SystemSettings.setting_key == "service_fee_percentage"
+    ).first()
+    
+    if setting:
+        # Update existing setting
+        setting.setting_value = str(fee_data.service_fee_percentage)
+        setting.updated_by = current_user.id
+        setting.updated_at = datetime.utcnow()
+    else:
+        # Create new setting
+        setting = SystemSettings(
+            setting_key="service_fee_percentage",
+            setting_value=str(fee_data.service_fee_percentage),
+            description="Platform service fee percentage",
+            updated_by=current_user.id
+        )
+        db.add(setting)
+    
+    db.commit()
+    db.refresh(setting)
+    
+    return {
+        "service_fee_percentage": Decimal(setting.setting_value),
+        "updated_at": setting.updated_at,
+        "updated_by": setting.updated_by
+    }
+
+
+@router.get("/settings", response_model=List[SystemSettingResponse])
+def get_all_settings(
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get all system settings"""
+    settings = db.query(SystemSettings).all()
+    return settings

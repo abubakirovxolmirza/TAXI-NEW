@@ -309,3 +309,18 @@ class Feedback(Base):
     
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
+
+
+class SystemSettings(Base):
+    __tablename__ = "system_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    setting_key = Column(String(100), unique=True, nullable=False, index=True)
+    setting_value = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    admin = relationship("User", foreign_keys=[updated_by])

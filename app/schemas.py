@@ -405,3 +405,30 @@ class FeedbackResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+# System Settings Schemas
+class ServiceFeeUpdate(BaseModel):
+    service_fee_percentage: Decimal = Field(..., ge=0, le=100)
+    
+    @validator('service_fee_percentage')
+    def validate_percentage(cls, v):
+        if v < 0 or v > 100:
+            raise ValueError('Service fee percentage must be between 0 and 100')
+        return v
+
+
+class ServiceFeeResponse(BaseModel):
+    service_fee_percentage: Decimal
+    updated_at: Optional[datetime]
+    updated_by: Optional[int]
+
+
+class SystemSettingResponse(BaseModel):
+    setting_key: str
+    setting_value: str
+    description: Optional[str]
+    updated_at: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
