@@ -6,7 +6,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from typing import Dict, List, Set, Optional
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import redis.asyncio as redis
 from app.config import settings
@@ -292,7 +292,7 @@ class ConnectionManager:
                 pass
         
         # Local locking (for standalone mode)
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         if order_id in self.order_locks:
             locked_driver_id, lock_time = self.order_locks[order_id]
             if (current_time - lock_time).total_seconds() < 5:

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from typing import List
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from decimal import Decimal
 from app.database import get_db
 from app.models import (
@@ -101,7 +101,7 @@ def review_application(
         )
     
     application.reviewed_by = current_user.id
-    application.reviewed_at = datetime.utcnow()
+    application.reviewed_at = datetime.now(timezone.utc)
     
     db.commit()
     
@@ -362,7 +362,7 @@ def get_order_statistics(
     db: Session = Depends(get_db)
 ):
     """Get order statistics"""
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     
     if period == "daily":
         start_date = today
@@ -679,7 +679,7 @@ def update_service_fee(
         # Update existing setting
         setting.setting_value = str(fee_data.service_fee_percentage)
         setting.updated_by = current_user.id
-        setting.updated_at = datetime.utcnow()
+        setting.updated_at = datetime.now(timezone.utc)
     else:
         # Create new setting
         setting = SystemSettings(

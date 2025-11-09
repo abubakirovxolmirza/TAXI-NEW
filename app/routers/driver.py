@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import shutil
 from pathlib import Path
@@ -214,7 +214,7 @@ def get_driver_statistics(
             detail="Driver profile not found"
         )
     
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     month_start = today.replace(day=1)
     
     # Daily statistics
@@ -399,7 +399,7 @@ async def accept_order(
         )
     
     # Check if order was created within last 5 minutes
-    time_diff = datetime.utcnow() - order.created_at
+    time_diff = datetime.now(timezone.utc) - order.created_at
     if time_diff > timedelta(minutes=5):
         # Return order to pending state if expired
         return {
@@ -410,7 +410,7 @@ async def accept_order(
     # Accept order
     order.driver_id = driver.id
     order.status = OrderStatus.ACCEPTED
-    order.accepted_at = datetime.utcnow()
+    order.accepted_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(order)
@@ -508,7 +508,7 @@ def complete_order(
     
     # Complete order
     order.status = OrderStatus.COMPLETED
-    order.completed_at = datetime.utcnow()
+    order.completed_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(order)

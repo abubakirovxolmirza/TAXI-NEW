@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.database import get_db
 from app.models import User, TaxiOrder, OrderStatus, Driver
 from app.schemas import TaxiOrderCreate, TaxiOrderResponse, OrderCancellation
@@ -192,7 +192,7 @@ def cancel_taxi_order(
     # Update order status
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation.cancellation_reason
-    order.cancelled_at = datetime.utcnow()
+    order.cancelled_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(order)

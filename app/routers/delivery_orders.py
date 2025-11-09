@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database import get_db
 from app.models import User, DeliveryOrder, OrderStatus, Driver
 from app.schemas import DeliveryOrderCreate, DeliveryOrderResponse, OrderCancellation
@@ -193,7 +193,7 @@ def cancel_delivery_order(
     # Update order status
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation.cancellation_reason
-    order.cancelled_at = datetime.utcnow()
+    order.cancelled_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(order)
