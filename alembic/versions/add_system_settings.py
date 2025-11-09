@@ -1,7 +1,7 @@
 """add system settings table
 
 Revision ID: add_system_settings
-Revises: add_scheduled_datetime
+Revises: add_service_fee
 Create Date: 2025-11-09 10:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_system_settings'
-down_revision = 'add_scheduled_datetime'
+down_revision = 'add_service_fee'
 branch_label = None
 depends_on = None
 
