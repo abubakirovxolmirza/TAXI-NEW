@@ -163,6 +163,45 @@ def get_delivery_order(
     return order
 
 
+@router.delete("/{order_id}", status_code=status.HTTP_200_OK)
+def delete_delivery_order(
+    order_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a delivery order (only for cancelled or completed orders)"""
+    order = db.query(DeliveryOrder).filter(DeliveryOrder.id == order_id).first()
+    
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+    
+    # Only the order owner can delete their order
+    if order.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this order"
+        )
+    
+    # Only allow deleting cancelled or completed orders
+    if order.status not in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only cancelled or completed orders can be deleted"
+        )
+    
+    # Delete the order
+    db.delete(order)
+    db.commit()
+    
+    return {
+        "message": "Order deleted successfully",
+        "order_id": order_id
+    }
+
+
 @router.post("/cancel", response_model=DeliveryOrderResponse)
 def cancel_delivery_order(
     cancellation: OrderCancellation,
