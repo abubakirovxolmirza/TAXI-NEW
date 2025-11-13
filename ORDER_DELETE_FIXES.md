@@ -16,6 +16,15 @@ Fixed authorization issues with order deletion and added bulk delete functionali
 ### 2. Added Bulk Delete Functionality
 Created new endpoints that accept a list of order IDs for bulk deletion operations.
 
+### 3. Fixed Route Ordering Issue
+**Problem:** The `/delete-all` endpoint was returning a 422 error because FastAPI was matching it with the `/{order_id}` route first.
+
+**Solution:** Moved the `/delete-all` endpoint definition **before** the `/{order_id}` endpoint so specific routes are matched before path parameters. This is a critical FastAPI routing best practice.
+
+**Route Order (Correct):**
+1. `/delete-all` ✅ (specific route - matches first)
+2. `/{order_id}` (path parameter - matches after)
+
 ---
 
 ## API Endpoints

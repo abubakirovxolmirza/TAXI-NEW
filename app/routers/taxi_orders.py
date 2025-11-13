@@ -162,6 +162,40 @@ def get_taxi_order(
     return order
 
 
+@router.delete("/delete-all", status_code=status.HTTP_200_OK)
+def delete_all_taxi_orders(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete all taxi orders (Admin/Superadmin only)"""
+    
+    # Only admin or superadmin can delete all orders
+    if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can delete all orders"
+        )
+    
+    # Get all taxi orders
+    all_orders = db.query(TaxiOrder).all()
+    total_orders = len(all_orders)
+    
+    if total_orders == 0:
+        return {
+            "message": "No orders to delete",
+            "total_deleted": 0
+        }
+    
+    # Delete all orders
+    db.query(TaxiOrder).delete()
+    db.commit()
+    
+    return {
+        "message": f"Successfully deleted all taxi orders",
+        "total_deleted": total_orders
+    }
+
+
 @router.delete("/{order_id}", status_code=status.HTTP_200_OK)
 def delete_taxi_order(
     order_id: int,
@@ -259,40 +293,6 @@ def bulk_delete_taxi_orders(
         "total_requested": len(delete_request.order_ids),
         "total_deleted": len(deleted_orders),
         "total_failed": len(failed_orders)
-    }
-
-
-@router.delete("/delete-all", status_code=status.HTTP_200_OK)
-def delete_all_taxi_orders(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Delete all taxi orders (Admin/Superadmin only)"""
-    
-    # Only admin or superadmin can delete all orders
-    if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can delete all orders"
-        )
-    
-    # Get all taxi orders
-    all_orders = db.query(TaxiOrder).all()
-    total_orders = len(all_orders)
-    
-    if total_orders == 0:
-        return {
-            "message": "No orders to delete",
-            "total_deleted": 0
-        }
-    
-    # Delete all orders
-    db.query(TaxiOrder).delete()
-    db.commit()
-    
-    return {
-        "message": f"Successfully deleted all taxi orders",
-        "total_deleted": total_orders
     }
 
 
