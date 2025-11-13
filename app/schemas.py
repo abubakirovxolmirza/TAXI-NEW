@@ -390,6 +390,11 @@ class OrderCancellation(BaseModel):
     cancellation_reason: str
 
 
+# Bulk Delete Schema
+class BulkDeleteRequest(BaseModel):
+    order_ids: List[int] = Field(..., min_items=1, description="List of order IDs to delete")
+
+
 # Feedback Schema
 class FeedbackCreate(BaseModel):
     message: str

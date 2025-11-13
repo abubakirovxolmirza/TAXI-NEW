@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timezone
 from app.database import get_db
-from app.models import User, DeliveryOrder, OrderStatus, Driver
-from app.schemas import DeliveryOrderCreate, DeliveryOrderResponse, OrderCancellation
+from app.models import User, DeliveryOrder, OrderStatus, Driver, UserRole
+from app.schemas import DeliveryOrderCreate, DeliveryOrderResponse, OrderCancellation, BulkDeleteRequest
 from app.auth import get_current_user
 from app.utils import calculate_delivery_price, notify_all_drivers, create_notification, calculate_service_fee
 from app.websocket import manager
@@ -178,8 +178,11 @@ def delete_delivery_order(
             detail="Order not found"
         )
     
-    # Only the order owner can delete their order
-    if order.user_id != current_user.id:
+    # Allow order owner, admin, or superadmin to delete
+    is_owner = order.user_id == current_user.id
+    is_admin_or_superadmin = current_user.role in [UserRole.ADMIN, UserRole.SUPERADMIN]
+    
+    if not (is_owner or is_admin_or_superadmin):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to delete this order"
@@ -199,6 +202,98 @@ def delete_delivery_order(
     return {
         "message": "Order deleted successfully",
         "order_id": order_id
+    }
+
+
+@router.post("/bulk-delete", status_code=status.HTTP_200_OK)
+def bulk_delete_delivery_orders(
+    delete_request: BulkDeleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete multiple delivery orders at once (only for cancelled or completed orders)"""
+    
+    # Check if user is admin or superadmin
+    is_admin_or_superadmin = current_user.role in [UserRole.ADMIN, UserRole.SUPERADMIN]
+    
+    deleted_orders = []
+    failed_orders = []
+    
+    for order_id in delete_request.order_ids:
+        order = db.query(DeliveryOrder).filter(DeliveryOrder.id == order_id).first()
+        
+        if not order:
+            failed_orders.append({
+                "order_id": order_id,
+                "reason": "Order not found"
+            })
+            continue
+        
+        # Allow order owner, admin, or superadmin to delete
+        is_owner = order.user_id == current_user.id
+        
+        if not (is_owner or is_admin_or_superadmin):
+            failed_orders.append({
+                "order_id": order_id,
+                "reason": "Not authorized to delete this order"
+            })
+            continue
+        
+        # Only allow deleting cancelled or completed orders
+        if order.status not in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
+            failed_orders.append({
+                "order_id": order_id,
+                "reason": "Only cancelled or completed orders can be deleted"
+            })
+            continue
+        
+        # Delete the order
+        db.delete(order)
+        deleted_orders.append(order_id)
+    
+    db.commit()
+    
+    return {
+        "message": f"Successfully deleted {len(deleted_orders)} order(s)",
+        "deleted_orders": deleted_orders,
+        "failed_orders": failed_orders,
+        "total_requested": len(delete_request.order_ids),
+        "total_deleted": len(deleted_orders),
+        "total_failed": len(failed_orders)
+    }
+
+
+@router.delete("/delete-all", status_code=status.HTTP_200_OK)
+def delete_all_delivery_orders(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete all delivery orders (Admin/Superadmin only)"""
+    
+    # Only admin or superadmin can delete all orders
+    if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can delete all orders"
+        )
+    
+    # Get all delivery orders
+    all_orders = db.query(DeliveryOrder).all()
+    total_orders = len(all_orders)
+    
+    if total_orders == 0:
+        return {
+            "message": "No orders to delete",
+            "total_deleted": 0
+        }
+    
+    # Delete all orders
+    db.query(DeliveryOrder).delete()
+    db.commit()
+    
+    return {
+        "message": f"Successfully deleted all delivery orders",
+        "total_deleted": total_orders
     }
 
 
