@@ -47,8 +47,8 @@ class User(Base):
     telephone = Column(String(20), unique=True, index=True, nullable=False)
     name = Column(String(100), nullable=False)
     hashed_password = Column(String(255), nullable=False)
-    role = Column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
-    language = Column(SQLEnum(Language), default=Language.UZ_LATIN, nullable=False)
+    role = Column(SQLEnum(UserRole, values_callable=lambda obj: [e.value for e in obj]), default=UserRole.USER, nullable=False)
+    language = Column(SQLEnum(Language, values_callable=lambda obj: [e.value for e in obj]), default=Language.UZ_LATIN, nullable=False)
     profile_picture = Column(String(255), nullable=True)
     telegram_chat_id = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -138,7 +138,7 @@ class TaxiOrder(Base):
     service_fee = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # 8% platform fee
     driver_earnings = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # Driver's portion after fee
     note = Column(Text, nullable=True)
-    status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
+    status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
     cancellation_reason = Column(Text, nullable=True)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
@@ -175,7 +175,7 @@ class DeliveryOrder(Base):
     dropoff_latitude = Column(String(50), nullable=True)  # Receiver's drop-off latitude
     dropoff_longitude = Column(String(50), nullable=True)  # Receiver's drop-off longitude
     dropoff_address = Column(Text, nullable=True)  # Receiver's address
-    item_type = Column(SQLEnum(ItemType), nullable=False)
+    item_type = Column(SQLEnum(ItemType, values_callable=lambda obj: [e.value for e in obj]), nullable=False)
     date = Column(String(10), nullable=False)  # dd.mm.yyyy
     time_start = Column(String(5), nullable=False)  # HH:MM
     time_end = Column(String(5), nullable=False)  # HH:MM
@@ -184,7 +184,7 @@ class DeliveryOrder(Base):
     service_fee = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # 8% platform fee
     driver_earnings = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # Driver's portion after fee
     note = Column(Text, nullable=True)
-    status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
+    status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
     cancellation_reason = Column(Text, nullable=True)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
@@ -231,7 +231,7 @@ class DriverApplication(Base):
     car_model = Column(String(100), nullable=False)
     car_number = Column(String(20), nullable=False)
     license_photo = Column(String(255), nullable=False)
-    status = Column(SQLEnum(ApplicationStatus), default=ApplicationStatus.PENDING, nullable=False)
+    status = Column(SQLEnum(ApplicationStatus, values_callable=lambda obj: [e.value for e in obj]), default=ApplicationStatus.PENDING, nullable=False)
     rejection_reason = Column(Text, nullable=True)
     reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
