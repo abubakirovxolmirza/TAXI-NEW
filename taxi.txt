@@ -1,0 +1,247 @@
+(venv) root@new-taxi:/var/www/taxi-service/TAXI-NEW# nano alembic/versions/202402131200_lc_enums.py
+(venv) root@new-taxi:/var/www/taxi-service/TAXI-NEW# alembic upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+Traceback (most recent call last):
+  File "/var/www/taxi-service/TAXI-NEW/venv/bin/alembic", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/config.py", line 641, in main
+    CommandLine(prog=prog).main(argv=argv)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/config.py", line 631, in main
+    self.run_cmd(cfg, options)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/config.py", line 608, in run_cmd
+    fn(
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/command.py", line 403, in upgrade
+    script.run_env()
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/base.py", line 583, in run_env
+    util.load_python_file(self.dir, "env.py")
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 95, in load_python_file
+    module = load_module_py(module_id, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 113, in load_module_py
+    spec.loader.exec_module(module)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 995, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/var/www/taxi-service/TAXI-NEW/alembic/env.py", line 62, in <module>
+    run_migrations_online()
+  File "/var/www/taxi-service/TAXI-NEW/alembic/env.py", line 56, in run_migrations_online
+    context.run_migrations()
+  File "<string>", line 8, in run_migrations
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/runtime/environment.py", line 948, in run_migrations
+    self.get_context().run_migrations(**kw)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/runtime/migration.py", line 615, in run_migrations
+    for step in self._migrations_fn(heads, self):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/command.py", line 392, in upgrade
+    return script._upgrade_revs(revision, rev)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/base.py", line 459, in _upgrade_revs
+    for script in reversed(list(revs))
+                           ^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/revision.py", line 813, in iterate_revisions
+    revisions, heads = fn(
+                       ^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/revision.py", line 1438, in _collect_upgrade_revisions
+    for rev in self._parse_upgrade_target(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/revision.py", line 1229, in _parse_upgrade_target
+    return self.get_revisions(target)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/revision.py", line 545, in get_revisions
+    resolved_id, branch_label = self._resolve_revision_number(id_)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/revision.py", line 767, in _resolve_revision_number
+    self._revision_map
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 1146, in __get__
+    obj.__dict__[self.__name__] = result = self.fget(obj)
+                                           ^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/revision.py", line 210, in _revision_map
+    for revision in self._generator():
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/base.py", line 155, in _load_revisions
+    script = Script._from_filename(self, dir_name, filename)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/script/base.py", line 1042, in _from_filename
+    module = util.load_python_file(dir_, filename)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 95, in load_python_file
+    module = load_module_py(module_id, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 113, in load_module_py
+    spec.loader.exec_module(module)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 991, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1129, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1059, in source_to_code
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/var/www/taxi-service/TAXI-NEW/alembic/versions/202402131200_lc_enums.py", line 3
+    ALTER TYPE userrole RENAME TO userrole_old;
+          ^^^^
+SyntaxError: invalid syntax
+(venv) root@new-taxi:/var/www/taxi-service/TAXI-NEW# python main.py 
+INFO:     Will watch for changes in these directories: ['/var/www/taxi-service/TAXI-NEW']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [175051] using WatchFiles
+INFO:     Started server process [175054]
+INFO:     Waiting for application startup.
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+INFO:     Application startup complete.
+✅ Redis PubSub listener started
+INFO:     ('95.214.211.9', 0) - "WebSocket /ws/user/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMyIsImV4cCI6MTc2NTk0OTcxM30.yeBR79b6lIgn_QgnRJH0weK_OigwYLKn4PVwWjryOq0" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     connection closed
+INFO:     ('95.214.211.9', 0) - "WebSocket /ws/user/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMyIsImV4cCI6MTc2NTk0OTcxM30.yeBR79b6lIgn_QgnRJH0weK_OigwYLKn4PVwWjryOq0" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     connection closed
+INFO:     104.23.239.68:0 - "POST /api/auth/login HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/sql/sqltypes.py", line 1647, in _object_value_for_elem
+    return self._object_lookup[elem]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'admin'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 419, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 84, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/applications.py", line 123, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/routing.py", line 762, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/routing.py", line 782, in app
+    await route.handle(scope, receive, send)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/routing.py", line 72, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/fastapi/routing.py", line 299, in app
+    raise e
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/fastapi/routing.py", line 294, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/fastapi/routing.py", line 193, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/starlette/concurrency.py", line 40, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/anyio/to_thread.py", line 56, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2485, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 976, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/app/routers/auth.py", line 50, in login
+    user = db.query(User).filter(User.telephone == credentials.telephone).first()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/orm/query.py", line 2748, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/engine/result.py", line 1800, in first
+    return self._only_one_row(
+           ^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/engine/result.py", line 754, in _only_one_row
+    row: Optional[_InterimRowType[Any]] = onerow(hard_close=True)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/engine/result.py", line 1687, in _fetchone_impl
+    return self._real_result._fetchone_impl(hard_close=hard_close)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/engine/result.py", line 2279, in _fetchone_impl
+    row = next(self.iterator, _NO_ROW)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/orm/loading.py", line 217, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/engine/result.py", line 544, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/sql/sqltypes.py", line 1767, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/sqlalchemy/sql/sqltypes.py", line 1649, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'admin' is not among the defined enum values. Enum name: userrole. Possible values: USER, DRIVER, ADMIN, SUPERADMIN
+INFO:     ('95.214.211.9', 0) - "WebSocket /ws/user/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMyIsImV4cCI6MTc2NTk0OTcxM30.yeBR79b6lIgn_QgnRJH0weK_OigwYLKn4PVwWjryOq0" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     connection closed
+^CINFO:     Shutting down
+INFO:     Waiting for application shutdown.
+🛑 Shutting down Taxi Service API...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [175054]
+INFO:     Stopping reloader process [175051]
+(venv) root@new-taxi:/var/www/taxi-service/TAXI-NEW# ^C
+(venv) root@new-taxi:/var/www/taxi-service/TAXI-NEW# ^C
+(venv) root@new-taxi:/var/www/taxi-service/TAXI-NEW# cat alembic/versions/202402131200_lc_enums.py
+BEGIN;
+
+ALTER TYPE userrole RENAME TO userrole_old;
+CREATE TYPE userrole AS ENUM ('user', 'driver', 'admin', 'superadmin');
+ALTER TABLE users ALTER COLUMN role TYPE userrole
+    USING lower(role::text)::userrole;
+DROP TYPE userrole_old;
+
+ALTER TYPE language RENAME TO language_old;
+CREATE TYPE language AS ENUM ('uz_latin', 'uz_cyrillic', 'russian');
+ALTER TABLE users ALTER COLUMN language TYPE language
+    USING lower(language::text)::language;
+DROP TYPE language_old;
+
+ALTER TYPE applicationstatus RENAME TO applicationstatus_old;
+CREATE TYPE applicationstatus AS ENUM ('pending', 'approved', 'rejected');
+ALTER TABLE driver_applications ALTER COLUMN status TYPE applicationstatus
+    USING lower(status::text)::applicationstatus;
+DROP TYPE applicationstatus_old;
+
+ALTER TYPE itemtype RENAME TO itemtype_old;
+CREATE TYPE itemtype AS ENUM ('document', 'box', 'luggage', 'valuable', 'other');
+ALTER TABLE delivery_orders ALTER COLUMN item_type TYPE itemtype
+    USING lower(item_type::text)::itemtype;
+DROP TYPE itemtype_old;
+
+ALTER TYPE orderstatus RENAME TO orderstatus_old;
+CREATE TYPE orderstatus AS ENUM ('pending', 'accepted', 'completed', 'cancelled');
+ALTER TABLE taxi_orders ALTER COLUMN status TYPE orderstatus
+    USING lower(status::text)::orderstatus;
+ALTER TABLE delivery_orders ALTER COLUMN status TYPE orderstatus
+    USING lower(status::text)::orderstatus;
+DROP TYPE orderstatus_old;
+
+COMMIT;
+(venv) root@new-taxi:/var/www/taxi-service/TAXI-NEW# 
