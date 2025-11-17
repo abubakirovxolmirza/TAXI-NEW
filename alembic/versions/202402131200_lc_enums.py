@@ -1,6 +1,6 @@
 """normalize enum values to lowercase to match SQLAlchemy models
 
-Revision ID: 202402131200_lowercase_enum_values
+Revision ID: 202402131200_lc_enums
 Revises: change_coordinates_to_string
 Create Date: 2024-02-13 12:00:00
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "202402131200_lowercase_enum_values"
+revision = "202402131200_lc_enums"
 down_revision = "change_coordinates_to_string"
 branch_labels = None
 depends_on = None
