@@ -297,7 +297,7 @@ def bulk_delete_taxi_orders(
 
 
 @router.post("/cancel", response_model=TaxiOrderResponse)
-def cancel_taxi_order(
+async def cancel_taxi_order(
     cancellation: OrderCancellation,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -354,5 +354,13 @@ def cancel_taxi_order(
         notification_type="order_cancelled",
         user_id=current_user.id
     )
+
+    await manager.broadcast_to_all_drivers({
+        "type": "order_cancelled",
+        "order_id": order.id,
+        "order_type": "taxi",
+        "driver_id": order.driver_id,
+        "cancellation_reason": order.cancellation_reason,
+    })
     
     return order

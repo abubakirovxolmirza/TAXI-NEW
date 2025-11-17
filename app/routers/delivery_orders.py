@@ -298,7 +298,7 @@ def bulk_delete_delivery_orders(
 
 
 @router.post("/cancel", response_model=DeliveryOrderResponse)
-def cancel_delivery_order(
+async def cancel_delivery_order(
     cancellation: OrderCancellation,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -352,5 +352,13 @@ def cancel_delivery_order(
         notification_type="order_cancelled",
         user_id=current_user.id
     )
+
+    await manager.broadcast_to_all_drivers({
+        "type": "order_cancelled",
+        "order_id": order.id,
+        "order_type": "delivery",
+        "driver_id": order.driver_id,
+        "cancellation_reason": order.cancellation_reason,
+    })
     
     return order
