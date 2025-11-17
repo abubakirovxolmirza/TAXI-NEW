@@ -1,0 +1,898 @@
+{
+  "info": {
+    "name": "Taxi Service API - Fake Data",
+    "description": "Postman collection with reusable fake payloads targeting http://164.90.229.192 for manual testing.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://164.90.229.192",
+      "type": "string"
+    },
+    {
+      "key": "test_phone",
+      "value": "+998930112233",
+      "type": "string"
+    },
+    {
+      "key": "test_name",
+      "value": "Mavlon Demo",
+      "type": "string"
+    },
+    {
+      "key": "region_id",
+      "value": "3",
+      "type": "string"
+    },
+    {
+      "key": "taxi_order_id",
+      "value": "17",
+      "type": "string"
+    },
+    {
+      "key": "delivery_order_id",
+      "value": "12",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "9",
+      "type": "string"
+    },
+    {
+      "key": "order_type",
+      "value": "taxi",
+      "type": "string"
+    },
+    {
+      "key": "order_id",
+      "value": "17",
+      "type": "string"
+    },
+    {
+      "key": "test_password",
+      "value": "Passw0rd!23",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Register/login users and manage profile credentials.",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telephone\": \"{{test_phone}}\",\n  \"name\": \"Test User\",\n  \"password\": \"{{test_password}}\",\n  \"confirm_password\": \"{{test_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telephone\": \"{{test_phone}}\",\n  \"password\": \"{{test_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "let jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.access_token) {",
+                  "  pm.collectionVariables.set(\"access_token\", jsonData.access_token);",
+                  "  console.log(\"Auth token saved to collection variables.\");",
+                  "} else if (jsonData && jsonData.token) {",
+                  "  pm.collectionVariables.set(\"access_token\", jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Test User\",\n  \"language\": \"uz_latin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"old_password\": \"{{test_password}}\",\n  \"new_password\": \"NewPassword123!\",\n  \"confirm_password\": \"NewPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/change-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "change-password"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Regions",
+      "item": [
+        {
+          "name": "Get Regions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/regions/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "regions",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Districts by Region",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/regions/{{region_id}}/districts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "regions",
+                "{{region_id}}",
+                "districts"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Taxi Orders",
+      "item": [
+        {
+          "name": "Create Taxi Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{test_name}}\",\n  \"telephone\": \"{{test_phone}}\",\n  \"from_region_id\": 1,\n  \"from_district_id\": 1,\n  \"to_region_id\": 2,\n  \"to_district_id\": 3,\n  \"passengers\": 2,\n  \"date\": \"25.12.2024\",\n  \"time_start\": \"09:00\",\n  \"time_end\": \"09:30\",\n  \"note\": \"Pick me up near the main entrance\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "taxi-orders",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Taxi Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/?status_filter=pending",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "taxi-orders",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "status_filter",
+                  "value": "pending"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Taxi Order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/{{taxi_order_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "taxi-orders",
+                "{{taxi_order_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Active Taxi Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "taxi-orders",
+                "active"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Taxi Order History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "taxi-orders",
+                "history"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel Taxi Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": {{taxi_order_id}},\n  \"order_type\": \"taxi\",\n  \"cancellation_reason\": \"Passenger request\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/taxi-orders/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "taxi-orders",
+                "cancel"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delivery Orders",
+      "item": [
+        {
+          "name": "Create Delivery Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{test_name}}\",\n  \"sender_telephone\": \"{{test_phone}}\",\n  \"receiver_telephone\": \"+998998887766\",\n  \"item_type\": \"box\",\n  \"from_region_id\": 1,\n  \"from_district_id\": 1,\n  \"to_region_id\": 2,\n  \"to_district_id\": 3,\n  \"date\": \"25.12.2024\",\n  \"time_start\": \"10:00\",\n  \"time_end\": \"11:00\",\n  \"note\": \"Handle with care\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/delivery-orders/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "delivery-orders",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Delivery Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/delivery-orders/?status_filter=pending",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "delivery-orders",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "status_filter",
+                  "value": "pending"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Active Delivery Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/delivery-orders/active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "delivery-orders",
+                "active"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delivery Order History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/delivery-orders/history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "delivery-orders",
+                "history"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Delivery Order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/delivery-orders/{{delivery_order_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "delivery-orders",
+                "{{delivery_order_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel Delivery Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": {{delivery_order_id}},\n  \"order_type\": \"delivery\",\n  \"cancellation_reason\": \"Recipient unavailable\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/delivery-orders/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "delivery-orders",
+                "cancel"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unread Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/unread",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "unread"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/{{notification_id}}/mark-read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "{{notification_id}}",
+                "mark-read"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark All Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/mark-all-read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "mark-all-read"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Driver",
+      "item": [
+        {
+          "name": "Apply as Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"{{test_name}}\",\n  \"car_model\": \"Chevrolet Malibu\",\n  \"car_number\": \"01A123BC\",\n  \"license_photo\": \"uploads/licenses/sample.png\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/driver/apply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "driver",
+                "apply"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Driver Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/driver/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "driver",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Driver Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/driver/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "driver",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Driver Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"{{test_name}}\",\n  \"car_model\": \"Chevrolet Tracker\",\n  \"car_number\": \"01B456CD\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/driver/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "driver",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Driver Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/driver/statistics",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "driver",
+                "statistics"
+              ]
+            }
+          }
+        },
+        {
+          "name": "New Orders Feed",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/driver/orders/new",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "driver",
+                "orders",
+                "new"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Accept Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/driver/orders/accept/{{order_type}}/{{order_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "driver",
+                "orders",
+                "accept",
+                "{{order_type}}",
+                "{{order_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Complete Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/driver/orders/complete/{{order_type}}/{{order_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "driver",
+                "orders",
+                "complete",
+                "{{order_type}}",
+                "{{order_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -76,10 +76,12 @@ class ConnectionManager:
                             # Broadcast to all local driver connections
                             await self._broadcast_local_drivers(data)
                         elif channel == "users_channel":
-                            # Check if message is for specific user or all users
-                            if "user_id" in data:
+                            # Check if message is targeted (`{"user_id": 1, "message": {...}}`)
+                            # or broadcast payload that already includes filtering metadata
+                            if "user_id" in data and "message" in data:
                                 await self._send_local_user(data["user_id"], data["message"])
                             else:
+                                # Broadcast to every connected user; clients must filter by `user_id`
                                 await self._broadcast_local_users(data)
                     except Exception as e:
                         print(f"Error processing Redis message: {e}")

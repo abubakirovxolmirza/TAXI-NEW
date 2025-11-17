@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_scheduled_datetime'
-down_revision = None  # This will be the first migration after merge
+down_revision = '6d35d36c72cc'
 branch_labels = None
 depends_on = None
 

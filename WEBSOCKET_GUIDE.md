@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Taxi Service API now includes WebSocket support for real-time communication between drivers, users, and the server. This enables instant notifications, prevents double-booking of orders, and provides live updates on order status.
+The Taxi Service API now includes WebSocket support for real-time communication between drivers, users, and the server. This enables instant notifications, prevents double-booking of orders, and provides live updates on order status. All events are broadcast to every connected client, so each mobile/web client must filter events using the `user_id`/`driver_id` fields before applying UI updates.
 
 ## Features
 
@@ -133,6 +133,10 @@ ws.onmessage = (event) => {
         case "connected":
             console.log(`User ${data.user_id} connected`);
             break;
+        case "active_orders_snapshot":
+            // Full refresh of passenger's active orders list
+            renderActiveOrders(data.orders);
+            break;
         case "order_accepted":
             // Driver accepted your order
             showDriverInfo(data.driver);
@@ -155,6 +159,7 @@ ws.onmessage = (event) => {
 | Event Type | Description | Data |
 |------------|-------------|------|
 | `connected` | Connection confirmed | `{type, user_id, message}` |
+| `active_orders_snapshot` | Latest snapshot of passenger active (pending/accepted) taxi & delivery orders | `{type, user_id, orders: [...]}` |
 | `order_accepted` | Driver accepted order | `{type, order_id, driver: {...}}` |
 | `order_completed` | Order completed | `{type, order_id}` |
 | `driver_location` | Driver's current location | `{type, order_id, lat, lng}` |

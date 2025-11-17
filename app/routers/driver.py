@@ -1,26 +1,230 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, extract
-from typing import List, Optional
+import asyncio
+import shutil
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-import shutil
 from pathlib import Path
+from typing import List, Optional, Union
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.encoders import jsonable_encoder
+from sqlalchemy import and_, extract, func
+from sqlalchemy.orm import Session
+
+from app.auth import get_current_driver, get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models import (
-    User, Driver, DriverApplication, ApplicationStatus, 
-    TaxiOrder, DeliveryOrder, OrderStatus, UserRole
+    ApplicationStatus,
+    DeliveryOrder,
+    Driver,
+    DriverApplication,
+    OrderStatus,
+    TaxiOrder,
+    User,
+    UserRole,
 )
 from app.schemas import (
-    DriverApplicationCreate, DriverApplicationResponse,
-    DriverUpdate, DriverResponse, DriverStatistics
+    DriverApplicationCreate,
+    DriverApplicationResponse,
+    DriverResponse,
+    DriverStatistics,
+    DriverUpdate,
 )
-from app.auth import get_current_user, get_current_driver
 from app.utils import check_driver_can_accept_order, create_notification
-from app.config import settings
 from app.websocket import manager
 
 router = APIRouter(prefix="/api/driver", tags=["Driver"])
+
+ACTIVE_ORDER_STATUSES = (OrderStatus.PENDING, OrderStatus.ACCEPTED)
+
+
+def _build_driver_payload(driver: Driver) -> dict:
+    """Prepare driver info for websocket payloads."""
+    user = driver.user
+    telephone = None
+    avatar = None
+    if user:
+        telephone = user.telephone
+        avatar = user.profile_picture
+    rating_value = None
+    if driver.rating is not None:
+        try:
+            rating_value = float(driver.rating)
+        except (TypeError, ValueError):
+            rating_value = None
+    return {
+        "id": driver.id,
+        "name": driver.full_name,
+        "phone_number": telephone,
+        "avatar": avatar,
+        "car_model": driver.car_model,
+        "car_number": driver.car_number,
+        "rating": rating_value,
+    }
+
+
+async def _notify_passenger_order_status(
+    order: Union[TaxiOrder, DeliveryOrder],
+    order_type: str,
+    status: OrderStatus,
+    driver_payload: Optional[dict] = None,
+):
+    """Push real-time order status updates to the passenger."""
+    status_value = status.value if isinstance(status, OrderStatus) else str(status)
+    status_timestamp = datetime.now(timezone.utc).isoformat()
+    event_type = {
+        OrderStatus.ACCEPTED: "order_accepted",
+        OrderStatus.COMPLETED: "order_completed",
+        OrderStatus.CANCELLED: "order_cancelled",
+        OrderStatus.PENDING: "order_status",
+    }.get(status, "order_status")
+
+    payload = {
+        "type": "order_status",
+        "event": event_type,
+        "status_event": event_type,
+        "status": status_value,
+        "status_changed_at": status_timestamp,
+        "order_id": order.id,
+        "order_type": order_type,
+        "user_id": order.user_id,
+    }
+    if driver_payload:
+        payload["driver"] = driver_payload
+
+    await asyncio.gather(
+        manager.send_to_user(order.user_id, payload),
+        manager.broadcast_to_all_users(payload),
+    )
+
+
+def _decimal_to_float(value):
+    """Safely convert Decimal values to float for JSON payloads."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _datetime_to_iso(value: Optional[datetime]) -> Optional[str]:
+    return value.isoformat() if isinstance(value, datetime) else None
+
+
+def _enum_value(value):
+    if value is None:
+        return None
+    return getattr(value, "value", str(value))
+
+
+def _serialize_taxi_order_for_passenger(order: TaxiOrder) -> dict:
+    payload = {
+        "id": order.id,
+        "order_type": "taxi",
+        "user_id": order.user_id,
+        "driver_id": order.driver_id,
+        "username": order.username,
+        "telephone": order.telephone,
+        "from_region_id": order.from_region_id,
+        "from_district_id": order.from_district_id,
+        "to_region_id": order.to_region_id,
+        "to_district_id": order.to_district_id,
+        "pickup_latitude": order.pickup_latitude,
+        "pickup_longitude": order.pickup_longitude,
+        "pickup_address": order.pickup_address,
+        "passengers": order.passengers,
+        "is_mail_delivery": order.is_mail_delivery,
+        "date": order.date,
+        "time_start": order.time_start,
+        "time_end": order.time_end,
+        "scheduled_datetime": _datetime_to_iso(order.scheduled_datetime),
+        "price": _decimal_to_float(order.price),
+        "service_fee": _decimal_to_float(order.service_fee),
+        "driver_earnings": _decimal_to_float(order.driver_earnings),
+        "note": order.note,
+        "status": _enum_value(order.status),
+        "cancellation_reason": order.cancellation_reason,
+        "created_at": _datetime_to_iso(order.created_at),
+        "accepted_at": _datetime_to_iso(order.accepted_at),
+        "completed_at": _datetime_to_iso(order.completed_at),
+    }
+    if order.driver:
+        payload["driver"] = _build_driver_payload(order.driver)
+    return payload
+
+
+def _serialize_delivery_order_for_passenger(order: DeliveryOrder) -> dict:
+    payload = {
+        "id": order.id,
+        "order_type": "delivery",
+        "user_id": order.user_id,
+        "driver_id": order.driver_id,
+        "username": order.username,
+        "sender_telephone": order.sender_telephone,
+        "receiver_telephone": order.receiver_telephone,
+        "from_region_id": order.from_region_id,
+        "from_district_id": order.from_district_id,
+        "to_region_id": order.to_region_id,
+        "to_district_id": order.to_district_id,
+        "pickup_latitude": order.pickup_latitude,
+        "pickup_longitude": order.pickup_longitude,
+        "pickup_address": order.pickup_address,
+        "dropoff_latitude": order.dropoff_latitude,
+        "dropoff_longitude": order.dropoff_longitude,
+        "dropoff_address": order.dropoff_address,
+        "item_type": _enum_value(order.item_type),
+        "date": order.date,
+        "time_start": order.time_start,
+        "time_end": order.time_end,
+        "scheduled_datetime": _datetime_to_iso(order.scheduled_datetime),
+        "price": _decimal_to_float(order.price),
+        "service_fee": _decimal_to_float(order.service_fee),
+        "driver_earnings": _decimal_to_float(order.driver_earnings),
+        "note": order.note,
+        "status": _enum_value(order.status),
+        "cancellation_reason": order.cancellation_reason,
+        "created_at": _datetime_to_iso(order.created_at),
+        "accepted_at": _datetime_to_iso(order.accepted_at),
+        "completed_at": _datetime_to_iso(order.completed_at),
+    }
+    if order.driver:
+        payload["driver"] = _build_driver_payload(order.driver)
+    return payload
+
+
+def _collect_passenger_active_orders(user_id: int, db: Session) -> List[dict]:
+    taxi_orders = db.query(TaxiOrder).filter(
+        TaxiOrder.user_id == user_id,
+        TaxiOrder.status.in_(ACTIVE_ORDER_STATUSES)
+    ).order_by(TaxiOrder.created_at.desc()).all()
+
+    delivery_orders = db.query(DeliveryOrder).filter(
+        DeliveryOrder.user_id == user_id,
+        DeliveryOrder.status.in_(ACTIVE_ORDER_STATUSES)
+    ).order_by(DeliveryOrder.created_at.desc()).all()
+
+    orders: List[dict] = []
+    orders.extend(_serialize_taxi_order_for_passenger(order) for order in taxi_orders)
+    orders.extend(_serialize_delivery_order_for_passenger(order) for order in delivery_orders)
+    orders.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+    return orders
+
+
+async def _push_passenger_active_orders_snapshot(user_id: int, db: Session):
+    if not user_id:
+        return
+    orders = _collect_passenger_active_orders(user_id, db)
+    payload = {
+        "type": "active_orders_snapshot",
+        "user_id": user_id,
+        "orders": jsonable_encoder(orders),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await asyncio.gather(
+        manager.send_to_user(user_id, payload),
+        manager.broadcast_to_all_users(payload),
+    )
 
 
 @router.post("/apply", response_model=DriverApplicationResponse, status_code=status.HTTP_201_CREATED)
@@ -667,28 +871,23 @@ async def accept_order(
     # Release order lock
     await manager.release_order_lock(order_id)
     
+    driver_payload = _build_driver_payload(driver)
+    
     # Notify all drivers that this order is no longer available (WebSocket)
-    import asyncio
-    asyncio.create_task(manager.broadcast_to_all_drivers({
+    await manager.broadcast_to_all_drivers({
         "type": "order_accepted",
         "order_id": order.id,
         "order_type": order_type,
         "driver_id": driver.id
-    }))
+    })
     
-    # Notify user via WebSocket
-    asyncio.create_task(manager.send_to_user(order.user_id, {
-        "type": "order_accepted",
-        "order_id": order.id,
-        "order_type": order_type,
-        "driver": {
-            "id": driver.id,
-            "name": driver.full_name,
-            "car_model": driver.car_model,
-            "car_number": driver.car_number,
-            "rating": float(driver.rating)
-        }
-    }))
+    # Notify user via WebSocket (direct + broadcast for filtering)
+    await _notify_passenger_order_status(
+        order=order,
+        order_type=order_type,
+        status=OrderStatus.ACCEPTED,
+        driver_payload=driver_payload,
+    )
     
     # Notify user via database notification
     create_notification(
@@ -698,6 +897,8 @@ async def accept_order(
         notification_type="order_accepted",
         user_id=order.user_id
     )
+
+    await _push_passenger_active_orders_snapshot(order.user_id, db)
     
     return {
         "success": True,
@@ -711,7 +912,7 @@ async def accept_order(
 
 
 @router.post("/orders/complete/{order_type}/{order_id}")
-def complete_order(
+async def complete_order(
     order_type: str,
     order_id: int,
     current_user: User = Depends(get_current_driver),
@@ -770,6 +971,15 @@ def complete_order(
         notification_type="order_completed",
         user_id=order.user_id
     )
+    
+    await _notify_passenger_order_status(
+        order=order,
+        order_type=order_type,
+        status=OrderStatus.COMPLETED,
+        driver_payload=_build_driver_payload(driver),
+    )
+
+    await _push_passenger_active_orders_snapshot(order.user_id, db)
     
     return {
         "success": True,
