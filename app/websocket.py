@@ -3,7 +3,7 @@ WebSocket Connection Manager with Redis PubSub for Real-time Communication
 Handles driver and user connections with multi-server support
 """
 from fastapi import WebSocket, WebSocketDisconnect
-from typing import Dict, List, Set, Optional
+from typing import Any, Coroutine, Dict, List, Optional, Set
 import json
 import asyncio
 from datetime import datetime, timezone
@@ -32,9 +32,11 @@ class ConnectionManager:
         self.redis_pool: Optional[redis.Redis] = None
         self.pubsub: Optional[redis.client.PubSub] = None
         self._redis_listener_task: Optional[asyncio.Task] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
     
     async def init_redis(self):
         """Initialize Redis connection pool"""
+        self._loop = asyncio.get_running_loop()
         try:
             self.redis_pool = redis.from_url(
                 settings.REDIS_URL,
@@ -73,8 +75,23 @@ class ConnectionManager:
                         channel = message["channel"]
                         
                         if channel == "drivers_channel":
-                            # Broadcast to all local driver connections
-                            await self._broadcast_local_drivers(data)
+                            # Driver-specific payloads may include {"driver_id": X, "message": {...}}
+                            if "driver_id" in data and "message" in data:
+                                driver_id = data.get("driver_id")
+                                try:
+                                    driver_id = int(driver_id)
+                                except (TypeError, ValueError):
+                                    driver_id = None
+                                if driver_id is not None:
+                                    await self._send_to_local_driver(
+                                        driver_id,
+                                        data["message"],
+                                    )
+                                else:
+                                    await self._broadcast_local_drivers(data)
+                            else:
+                                # Broadcast payload intended for all drivers
+                                await self._broadcast_local_drivers(data)
                         elif channel == "users_channel":
                             # Check if message is targeted (`{"user_id": 1, "message": {...}}`)
                             # or broadcast payload that already includes filtering metadata
@@ -87,6 +104,25 @@ class ConnectionManager:
                         print(f"Error processing Redis message: {e}")
         except Exception as e:
             print(f"Redis listener error: {e}")
+    
+    def submit_background_task(
+        self,
+        coro: Coroutine[Any, Any, Any],
+    ) -> None:
+        """Run a coroutine on the websocket event loop thread-safe."""
+        if coro is None:
+            return
+        loop = self._loop
+        if loop is None:
+            return
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+        if running_loop is loop:
+            loop.create_task(coro)
+        else:
+            asyncio.run_coroutine_threadsafe(coro, loop)
     
     async def _broadcast_local_drivers(self, message: dict):
         """Broadcast to local driver connections only"""
@@ -343,6 +379,7 @@ class ConnectionManager:
             await self.pubsub.close()
         if self.redis_pool:
             await self.redis_pool.close()
+        self._loop = None
 
 
 # Global connection manager instance

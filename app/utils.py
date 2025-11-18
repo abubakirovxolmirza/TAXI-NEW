@@ -1,7 +1,10 @@
+import asyncio
+from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from app.models import Pricing, Driver, User, Notification, SystemSettings
 from typing import Optional, Tuple
+from app.websocket import manager
 
 # Default platform service fee percentage (fallback if not set in DB)
 DEFAULT_SERVICE_FEE_PERCENTAGE = Decimal("10.00")  # 10%
@@ -121,6 +124,7 @@ def create_notification(
     db.add(notification)
     db.commit()
     db.refresh(notification)
+    _dispatch_notification_event(notification)
     return notification
 
 
@@ -150,3 +154,55 @@ def check_driver_can_accept_order(db: Session, driver_id: int) -> bool:
     # Minimum balance requirement removed - drivers can accept orders
     
     return True
+
+
+def _serialize_notification(notification: Notification) -> dict:
+    created_at = notification.created_at
+    if not isinstance(created_at, datetime):
+        created_at = datetime.now(timezone.utc)
+    return {
+        "id": notification.id,
+        "title": notification.title,
+        "message": notification.message,
+        "type": notification.notification_type,
+        "notification_type": notification.notification_type,
+        "is_read": notification.is_read,
+        "created_at": created_at.isoformat(),
+    }
+
+
+def _dispatch_notification_event(notification: Notification):
+    event_payload = _serialize_notification(notification)
+    driver_user_id: Optional[int] = None
+    if notification.driver_id:
+        try:
+            driver = notification.driver
+        except Exception:
+            driver = None
+        if driver and driver.user_id:
+            driver_user_id = driver.user_id
+
+    target_user_id = notification.user_id or driver_user_id
+    if not target_user_id and not notification.driver_id:
+        return
+
+    event = {
+        "type": "notification",
+        "event": "notification_created",
+        "notification": event_payload,
+    }
+    if target_user_id:
+        event["user_id"] = target_user_id
+    if notification.driver_id:
+        event["driver_id"] = notification.driver_id
+
+    async def _send():
+        tasks = []
+        if target_user_id:
+            tasks.append(manager.send_to_user(target_user_id, event))
+        if notification.driver_id:
+            tasks.append(manager.send_to_driver(notification.driver_id, event))
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    manager.submit_background_task(_send())
