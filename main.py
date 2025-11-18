@@ -7,15 +7,17 @@ from app.routers import (
 )
 from app.config import settings
 from app.websocket import manager
+from app.tasks import start_background_tasks
 from contextlib import asynccontextmanager
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
-    # Startup: Initialize Redis
+    # Startup: Initialize Redis and start background tasks
     print("🚀 Starting up Taxi Service API...")
     await manager.init_redis()
+    start_background_tasks()
     yield
     # Shutdown: Cleanup Redis
     print("🛑 Shutting down Taxi Service API...")

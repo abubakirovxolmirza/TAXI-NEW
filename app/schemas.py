@@ -160,6 +160,8 @@ class TaxiOrderResponse(BaseModel):
     cancellation_reason: Optional[str]
     created_at: datetime
     accepted_at: Optional[datetime]
+    confirmed_at: Optional[datetime]
+    is_confirmed: bool
     completed_at: Optional[datetime]
     
     class Config:
@@ -219,6 +221,8 @@ class DeliveryOrderResponse(BaseModel):
     cancellation_reason: Optional[str]
     created_at: datetime
     accepted_at: Optional[datetime]
+    confirmed_at: Optional[datetime]
+    is_confirmed: bool
     completed_at: Optional[datetime]
     
     class Config:
