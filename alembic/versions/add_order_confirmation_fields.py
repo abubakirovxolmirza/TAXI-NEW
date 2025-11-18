@@ -1,7 +1,7 @@
 """add order confirmation fields
 
 Revision ID: add_order_confirmation
-Revises: add_system_settings
+Revises: 202402131200_lc_enums
 Create Date: 2024-11-18 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_order_confirmation'
-down_revision = 'add_system_settings'
+down_revision = '202402131200_lc_enums'
 branch_labels = None
 depends_on = None
 
