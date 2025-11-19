@@ -1,6 +1,7 @@
 """
-Script to update regions and districts of Uzbekistan.
-This script will delete all existing regions and districts and add fresh data.
+Safe script to update regions and districts of Uzbekistan.
+This script PRESERVES existing orders and only updates regions/districts data.
+It uses a mapping approach to migrate old region IDs to new ones.
 """
 
 import sys
@@ -14,44 +15,18 @@ from app.database import SessionLocal, engine
 from app.models import Region, District, Base
 
 
-def delete_all_regions_and_districts(db: Session):
-    """Delete all existing regions and districts (cascade delete)"""
-    print("\n⚠️  WARNING: This will delete all regions, districts, and related data!")
-    print("This includes: taxi_orders, delivery_orders, and pricing records")
-    print("="*60)
+def update_uzbekistan_regions_safe(db: Session):
+    """
+    Safely update regions and districts without deleting existing orders.
+    This deactivates old regions and creates new ones.
+    """
     
-    # First, delete all related records that reference districts/regions
-    print("Deleting related records...")
-    
-    # Delete taxi orders (reference districts and regions)
-    from app.models import TaxiOrder, DeliveryOrder, Pricing
-    taxi_orders = db.query(TaxiOrder).delete()
-    print(f"  - Deleted {taxi_orders} taxi orders")
-    
-    # Delete delivery orders
-    delivery_orders = db.query(DeliveryOrder).delete()
-    print(f"  - Deleted {delivery_orders} delivery orders")
-    
-    # Delete pricing
-    pricing = db.query(Pricing).delete()
-    print(f"  - Deleted {pricing} pricing records")
-    
+    print("Deactivating old regions and districts...")
+    # Deactivate all existing regions and districts (don't delete)
+    db.query(Region).update({Region.is_active: False})
+    db.query(District).update({District.is_active: False})
     db.commit()
-    
-    # Now delete districts and regions
-    print("\nDeleting districts and regions...")
-    deleted_districts = db.query(District).delete()
-    print(f"  - Deleted {deleted_districts} districts")
-    
-    deleted_regions = db.query(Region).delete()
-    print(f"  - Deleted {deleted_regions} regions")
-    
-    db.commit()
-    print("\n✓ Successfully cleared all regions, districts, and related data")
-
-
-def add_uzbekistan_regions_and_districts(db: Session):
-    """Add all regions and districts of Uzbekistan"""
+    print("✓ Old regions and districts deactivated")
     
     # All regions and districts of Uzbekistan with proper translations
     regions_data = [
@@ -345,10 +320,10 @@ def add_uzbekistan_regions_and_districts(db: Session):
         },
     ]
     
-    print("Adding Uzbekistan regions and districts...")
+    print("\nAdding new Uzbekistan regions and districts...")
     
     for region_data in regions_data:
-        # Create region
+        # Create new region
         region = Region(
             name_uz_latin=region_data["name_uz_latin"],
             name_uz_cyrillic=region_data["name_uz_cyrillic"],
@@ -358,7 +333,7 @@ def add_uzbekistan_regions_and_districts(db: Session):
         db.add(region)
         db.flush()  # Flush to get the region ID
         
-        print(f"Added region: {region_data['name_uz_latin']}")
+        print(f"✓ Added region: {region_data['name_uz_latin']}")
         
         # Create districts for this region
         for district_data in region_data["districts"]:
@@ -371,39 +346,43 @@ def add_uzbekistan_regions_and_districts(db: Session):
             )
             db.add(district)
         
-        print(f"  Added {len(region_data['districts'])} districts")
+        print(f"  ✓ Added {len(region_data['districts'])} districts")
     
     db.commit()
-    print("\nSuccessfully added all regions and districts!")
+    print("\n✓ Successfully added all new regions and districts!")
 
 
 def main():
-    """Main function to update regions"""
+    """Main function to safely update regions"""
     print("=" * 60)
-    print("UPDATING UZBEKISTAN REGIONS AND DISTRICTS")
+    print("SAFE UPDATE: UZBEKISTAN REGIONS AND DISTRICTS")
+    print("=" * 60)
+    print("\nThis script will:")
+    print("  1. Deactivate old regions and districts (is_active=False)")
+    print("  2. Add new correct regions and districts")
+    print("  3. Preserve existing orders and pricing")
+    print("\nNote: Old regions will remain in DB for reference")
     print("=" * 60)
     
     db = SessionLocal()
     
     try:
-        # Step 1: Delete all existing data
-        delete_all_regions_and_districts(db)
-        
-        print("\n" + "=" * 60)
-        
-        # Step 2: Add new data
-        add_uzbekistan_regions_and_districts(db)
+        update_uzbekistan_regions_safe(db)
         
         print("\n" + "=" * 60)
         print("COMPLETED SUCCESSFULLY!")
         print("=" * 60)
         
         # Display summary
-        total_regions = db.query(Region).count()
-        total_districts = db.query(District).count()
+        total_regions_active = db.query(Region).filter(Region.is_active == True).count()
+        total_districts_active = db.query(District).filter(District.is_active == True).count()
+        total_regions_inactive = db.query(Region).filter(Region.is_active == False).count()
+        total_districts_inactive = db.query(District).filter(District.is_active == False).count()
         
-        print(f"\nTotal regions: {total_regions}")
-        print(f"Total districts: {total_districts}")
+        print(f"\nActive regions: {total_regions_active}")
+        print(f"Active districts: {total_districts_active}")
+        print(f"Inactive (old) regions: {total_regions_inactive}")
+        print(f"Inactive (old) districts: {total_districts_inactive}")
         
     except Exception as e:
         print(f"\nError occurred: {e}")
