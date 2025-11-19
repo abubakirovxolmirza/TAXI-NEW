@@ -2,12 +2,45 @@ import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from app.models import Pricing, Driver, User, Notification, SystemSettings
+from app.models import Pricing, Driver, User, Notification, SystemSettings, UserRole, Language
 from typing import Optional, Tuple
 from app.websocket import manager
+from app.auth import get_password_hash
+import uuid
 
 # Default platform service fee percentage (fallback if not set in DB)
 DEFAULT_SERVICE_FEE_PERCENTAGE = Decimal("10.00")  # 10%
+
+
+def get_or_create_guest_user(db: Session, telephone: str, username: str) -> User:
+    """
+    Get existing user by telephone or create a new guest user.
+    This allows orders to be created without authentication.
+    """
+    # Try to find existing user by telephone
+    user = db.query(User).filter(User.telephone == telephone).first()
+    
+    if user:
+        return user
+    
+    # Create new guest user
+    # Generate random password for guest users
+    random_password = str(uuid.uuid4())
+    
+    guest_user = User(
+        telephone=telephone,
+        name=username,
+        hashed_password=get_password_hash(random_password),
+        role=UserRole.USER,
+        language=Language.UZ_LATIN,
+        is_active=True
+    )
+    
+    db.add(guest_user)
+    db.commit()
+    db.refresh(guest_user)
+    
+    return guest_user
 
 
 def get_service_fee_percentage(db: Session) -> Decimal:

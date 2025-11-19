@@ -11,6 +11,7 @@ from app.models import User, UserRole
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -114,6 +115,35 @@ async def get_current_superadmin(current_user: User = Depends(get_current_user))
             detail="Not authorized. Superadmin access required."
         )
     return current_user
+
+
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    Get user from token if provided, otherwise return None.
+    This allows endpoints to work both with and without authentication.
+    """
+    if credentials is None:
+        return None
+    
+    try:
+        token = credentials.credentials
+        payload = decode_token(token)
+        user_id_str = payload.get("sub")
+        
+        if user_id_str is None:
+            return None
+        
+        user_id = int(user_id_str)
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if user and user.is_active:
+            return user
+        return None
+    except:
+        return None
 
 
 def get_user_from_token(token: str) -> Optional[User]:

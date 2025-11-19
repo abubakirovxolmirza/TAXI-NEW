@@ -6,8 +6,8 @@ from datetime import datetime, timedelta, timezone
 from app.database import get_db
 from app.models import User, TaxiOrder, OrderStatus, Driver, UserRole
 from app.schemas import TaxiOrderCreate, TaxiOrderResponse, OrderCancellation, BulkDeleteRequest
-from app.auth import get_current_user
-from app.utils import calculate_taxi_price, notify_all_drivers, create_notification, calculate_service_fee
+from app.auth import get_current_user, get_optional_user
+from app.utils import calculate_taxi_price, notify_all_drivers, create_notification, calculate_service_fee, get_or_create_guest_user
 from app.websocket import manager, convert_decimal_to_float
 
 router = APIRouter(prefix="/api/taxi-orders", tags=["Taxi Orders"])
@@ -16,10 +16,17 @@ router = APIRouter(prefix="/api/taxi-orders", tags=["Taxi Orders"])
 @router.post("/", response_model=TaxiOrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_taxi_order(
     order_data: TaxiOrderCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new taxi order"""
+    """Create a new taxi order (works with or without authentication)"""
+    # If user is not authenticated, create or get guest user
+    if current_user is None:
+        current_user = get_or_create_guest_user(
+            db=db,
+            telephone=order_data.telephone,
+            username=order_data.username
+        )
     # Calculate price
     price = calculate_taxi_price(
         db=db,
