@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from app.database import get_db
 from app.models import User, DeliveryOrder, OrderStatus, Driver, UserRole
 from app.schemas import DeliveryOrderCreate, DeliveryOrderResponse, OrderCancellation, BulkDeleteRequest
-from app.auth import get_current_user
-from app.utils import calculate_delivery_price, notify_all_drivers, create_notification, calculate_service_fee
+from app.auth import get_current_user, get_optional_user
+from app.utils import calculate_delivery_price, notify_all_drivers, create_notification, calculate_service_fee, get_or_create_guest_user
 from app.websocket import manager
 
 router = APIRouter(prefix="/api/delivery-orders", tags=["Delivery Orders"])
@@ -15,10 +15,17 @@ router = APIRouter(prefix="/api/delivery-orders", tags=["Delivery Orders"])
 @router.post("/", response_model=DeliveryOrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_delivery_order(
     order_data: DeliveryOrderCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new delivery order"""
+    """Create a new delivery order (works with or without authentication)"""
+    # If user is not authenticated, create or get guest user
+    if current_user is None:
+        current_user = get_or_create_guest_user(
+            db=db,
+            telephone=order_data.sender_telephone,
+            username=order_data.username
+        )
     # Calculate price
     price = calculate_delivery_price(
         db=db,

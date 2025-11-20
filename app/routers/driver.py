@@ -864,19 +864,11 @@ async def accept_order(
             detail="Order is not available for acceptance"
         )
     
-    # Check if order was created within last 5 minutes
-    time_diff = datetime.now(timezone.utc) - order.created_at
-    if time_diff > timedelta(minutes=5):
-        # Return order to pending state if expired
-        return {
-            "success": False,
-            "message": "Order acceptance time has expired (5 minutes)"
-        }
-    
-    # Accept order
+    # Accept order - no time limit check
     order.driver_id = driver.id
     order.status = OrderStatus.ACCEPTED
     order.accepted_at = datetime.now(timezone.utc)
+    order.is_confirmed = False  # Not confirmed yet
     
     db.commit()
     db.refresh(order)
@@ -969,6 +961,13 @@ async def complete_order(
             detail="Only accepted orders can be completed"
         )
     
+    # Check if order is confirmed
+    if not order.is_confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Order must be confirmed before completion"
+        )
+    
     # Complete order
     order.status = OrderStatus.COMPLETED
     order.completed_at = datetime.now(timezone.utc)
@@ -997,6 +996,224 @@ async def complete_order(
     return {
         "success": True,
         "message": "Order completed successfully",
+        "order": {
+            "id": order.id,
+            "type": order_type,
+            "status": order.status
+        }
+    }
+
+
+@router.post("/orders/confirm/{order_type}/{order_id}")
+async def confirm_order(
+    order_type: str,
+    order_id: int,
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db)
+):
+    """Confirm an accepted order within 15 minutes"""
+    driver = current_user.driver_profile
+    
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found"
+        )
+    
+    # Get order based on type
+    if order_type == "taxi":
+        order = db.query(TaxiOrder).filter(TaxiOrder.id == order_id).first()
+    elif order_type == "delivery":
+        order = db.query(DeliveryOrder).filter(DeliveryOrder.id == order_id).first()
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid order type. Must be 'taxi' or 'delivery'"
+        )
+    
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+    
+    if order.driver_id != driver.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not assigned to this order"
+        )
+    
+    if order.status != OrderStatus.ACCEPTED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only accepted orders can be confirmed"
+        )
+    
+    if order.is_confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Order is already confirmed"
+        )
+    
+    # Check if confirmation time has expired (15 minutes)
+    if order.accepted_at:
+        time_diff = datetime.now(timezone.utc) - order.accepted_at
+        if time_diff > timedelta(minutes=15):
+            # Return order to pending state
+            old_driver_id = order.driver_id
+            order.driver_id = None
+            order.status = OrderStatus.PENDING
+            order.accepted_at = None
+            order.is_confirmed = False
+            
+            db.commit()
+            db.refresh(order)
+            
+            # Notify all drivers that order is available again
+            await manager.broadcast_to_all_drivers({
+                "type": "order_returned",
+                "order_id": order.id,
+                "order_type": order_type,
+                "reason": "Confirmation time expired"
+            })
+            
+            # Notify the driver who lost the order
+            create_notification(
+                db=db,
+                title="Order Expired",
+                message=f"Your {order_type} order #{order.id} confirmation time has expired (15 minutes). The order has been returned to the pool.",
+                notification_type="order_expired",
+                driver_id=driver.id
+            )
+            
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Confirmation time has expired (15 minutes). Order returned to pending list."
+            )
+    
+    # Confirm order
+    order.is_confirmed = True
+    order.confirmed_at = datetime.now(timezone.utc)
+    
+    db.commit()
+    db.refresh(order)
+    
+    # Notify user
+    create_notification(
+        db=db,
+        title="Order Confirmed",
+        message=f"Your {order_type} order #{order.id} has been confirmed by the driver.",
+        notification_type="order_confirmed",
+        user_id=order.user_id
+    )
+    
+    # Notify user via WebSocket
+    driver_payload = _build_driver_payload(driver)
+    await manager.send_to_user(order.user_id, {
+        "type": "order_confirmed",
+        "order_id": order.id,
+        "order_type": order_type,
+        "driver": driver_payload,
+        "confirmed_at": order.confirmed_at.isoformat()
+    })
+    
+    await _push_passenger_active_orders_snapshot(order.user_id, db)
+    
+    return {
+        "success": True,
+        "message": "Order confirmed successfully",
+        "order": {
+            "id": order.id,
+            "type": order_type,
+            "status": order.status,
+            "is_confirmed": order.is_confirmed,
+            "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None
+        }
+    }
+
+
+@router.post("/orders/reject/{order_type}/{order_id}")
+async def reject_order(
+    order_type: str,
+    order_id: int,
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db)
+):
+    """Reject an accepted order and return it to pending list"""
+    driver = current_user.driver_profile
+    
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found"
+        )
+    
+    # Get order based on type
+    if order_type == "taxi":
+        order = db.query(TaxiOrder).filter(TaxiOrder.id == order_id).first()
+    elif order_type == "delivery":
+        order = db.query(DeliveryOrder).filter(DeliveryOrder.id == order_id).first()
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid order type. Must be 'taxi' or 'delivery'"
+        )
+    
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+    
+    if order.driver_id != driver.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not assigned to this order"
+        )
+    
+    if order.status != OrderStatus.ACCEPTED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only accepted orders can be rejected"
+        )
+    
+    if order.is_confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmed orders cannot be rejected. Please complete the order."
+        )
+    
+    # Return order to pending state
+    order.driver_id = None
+    order.status = OrderStatus.PENDING
+    order.accepted_at = None
+    order.is_confirmed = False
+    
+    db.commit()
+    db.refresh(order)
+    
+    # Notify all drivers that order is available again
+    await manager.broadcast_to_all_drivers({
+        "type": "order_returned",
+        "order_id": order.id,
+        "order_type": order_type,
+        "reason": "Driver rejected"
+    })
+    
+    # Notify user
+    create_notification(
+        db=db,
+        title="Order Returned",
+        message=f"Your {order_type} order #{order.id} was rejected by the driver and is now available for other drivers.",
+        notification_type="order_rejected",
+        user_id=order.user_id
+    )
+    
+    await _push_passenger_active_orders_snapshot(order.user_id, db)
+    
+    return {
+        "success": True,
+        "message": "Order rejected and returned to pending list",
         "order": {
             "id": order.id,
             "type": order_type,

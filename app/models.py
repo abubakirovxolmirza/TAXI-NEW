@@ -141,6 +141,8 @@ class TaxiOrder(Base):
     status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
     cancellation_reason = Column(Text, nullable=True)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
+    confirmed_at = Column(DateTime(timezone=True), nullable=True)  # When driver confirms after accepting
+    is_confirmed = Column(Boolean, default=False, nullable=False)  # Whether driver confirmed the order
     completed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -187,6 +189,8 @@ class DeliveryOrder(Base):
     status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
     cancellation_reason = Column(Text, nullable=True)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
+    confirmed_at = Column(DateTime(timezone=True), nullable=True)  # When driver confirms after accepting
+    is_confirmed = Column(Boolean, default=False, nullable=False)  # Whether driver confirmed the order
     completed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
