@@ -7,7 +7,7 @@ from app.database import get_db
 from app.models import User, TaxiOrder, OrderStatus, Driver, UserRole
 from app.schemas import TaxiOrderCreate, TaxiOrderResponse, OrderCancellation, BulkDeleteRequest
 from app.auth import get_current_user, get_optional_user
-from app.utils import calculate_taxi_price, notify_all_drivers, create_notification, calculate_service_fee, get_or_create_guest_user
+from app.utils import calculate_taxi_price, create_notification, calculate_service_fee, get_or_create_guest_user
 from app.websocket import manager, convert_decimal_to_float
 
 router = APIRouter(prefix="/api/taxi-orders", tags=["Taxi Orders"])
@@ -67,11 +67,13 @@ async def create_taxi_order(
     db.commit()
     db.refresh(new_order)
     
-    # Notify all drivers via database
-    notify_all_drivers(
+    # Notify order owner only
+    create_notification(
         db=db,
-        title="New Taxi Order",
-        message=f"New taxi order from region {order_data.from_region_id} to {order_data.to_region_id}"
+        title="Taxi Order Created",
+        message=f"Your taxi order #{new_order.id} has been created and is waiting for drivers.",
+        notification_type="order_created",
+        user_id=current_user.id,
     )
     
     # Broadcast to all drivers via WebSocket
