@@ -16,9 +16,10 @@ from sqlalchemy import func
 from app.database import SessionLocal
 from app.models import (
     User, DriverApplication, ApplicationStatus, Driver,
-    TaxiOrder, DeliveryOrder, UserRole, Notification
+    TaxiOrder, DeliveryOrder, UserRole
 )
 from app.config import settings
+from app.utils import create_notification
 
 # Enable logging
 logging.basicConfig(
@@ -178,6 +179,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 license_photo=application.license_photo
             )
             db.add(new_driver)
+            db.flush()
             
             # Update application status
             application.status = ApplicationStatus.APPROVED
@@ -188,6 +190,26 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user.role = UserRole.DRIVER
             
             db.commit()
+            approval_title = "Application Approved"
+            approval_message = (
+                "Congratulations! Your driver application has been approved."
+            )
+            create_notification(
+                db=db,
+                title=approval_title,
+                message=approval_message,
+                notification_type="application_approved",
+                user_id=application.user_id,
+                driver_id=new_driver.id,
+                driver_status_payload={
+                    "status": "approved",
+                    "title": approval_title,
+                    "message": approval_message,
+                    "driver_id": new_driver.id,
+                    "application_id": application.id,
+                    "user_id": application.user_id,
+                },
+            )
             
             await query.edit_message_text(
                 f"✅ Application #{app_id} approved successfully!"
@@ -237,6 +259,25 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             application.status = ApplicationStatus.REJECTED
             application.rejection_reason = reason
             db.commit()
+            rejection_title = "Application Rejected"
+            rejection_reason = reason or "No reason provided"
+            rejection_message = (
+                f"Your driver application has been rejected. Reason: {rejection_reason}"
+            )
+            create_notification(
+                db=db,
+                title=rejection_title,
+                message=rejection_message,
+                notification_type="application_rejected",
+                user_id=application.user_id,
+                driver_status_payload={
+                    "status": "rejected",
+                    "title": rejection_title,
+                    "message": rejection_message,
+                    "application_id": application.id,
+                    "user_id": application.user_id,
+                },
+            )
             
             await update.message.reply_text(
                 f"✅ Application #{app_id} rejected with reason: {reason}"

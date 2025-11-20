@@ -1,9 +1,14 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
-from sqlalchemy.orm import Session
-from app.models import Pricing, Driver, User, Notification, SystemSettings
 from typing import Optional, Tuple
+
+import redis
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.models import Pricing, Driver, User, Notification, SystemSettings
 from app.websocket import manager
 
 # Default platform service fee percentage (fallback if not set in DB)
@@ -111,8 +116,9 @@ def create_notification(
     message: str,
     notification_type: str,
     user_id: Optional[int] = None,
-    driver_id: Optional[int] = None
-):
+    driver_id: Optional[int] = None,
+    driver_status_payload: Optional[dict] = None,
+) -> Notification:
     """Create a notification for user or driver"""
     notification = Notification(
         user_id=user_id,
@@ -125,6 +131,22 @@ def create_notification(
     db.commit()
     db.refresh(notification)
     _dispatch_notification_event(notification)
+    if driver_status_payload:
+        target_user_id = (
+            driver_status_payload.get("user_id")
+            or user_id
+            or getattr(notification.driver, "user_id", None)
+        )
+        payload_status = driver_status_payload.get("status")
+        if target_user_id and payload_status:
+            dispatch_driver_status_event(
+                user_id=target_user_id,
+                status=payload_status,
+                title=driver_status_payload.get("title", title),
+                message=driver_status_payload.get("message", message),
+                driver_id=driver_status_payload.get("driver_id", driver_id),
+                application_id=driver_status_payload.get("application_id"),
+            )
     return notification
 
 
@@ -196,13 +218,141 @@ def _dispatch_notification_event(notification: Notification):
     if notification.driver_id:
         event["driver_id"] = notification.driver_id
 
-    async def _send():
-        tasks = []
-        if target_user_id:
-            tasks.append(manager.send_to_user(target_user_id, event))
-        if notification.driver_id:
-            tasks.append(manager.send_to_driver(notification.driver_id, event))
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+    _dispatch_realtime_event(
+        user_id=target_user_id,
+        user_payload=event,
+        driver_id=notification.driver_id,
+        driver_payload=event if notification.driver_id else None,
+    )
 
-    manager.submit_background_task(_send())
+
+def dispatch_driver_status_event(
+    *,
+    user_id: int,
+    status: str,
+    title: str,
+    message: str,
+    driver_id: Optional[int] = None,
+    application_id: Optional[int] = None,
+):
+    """Push driver status update to a specific user via WebSocket."""
+    normalized_status = status.lower().strip()
+    if not user_id or not normalized_status:
+        return
+
+    timestamp_token = int(datetime.now(timezone.utc).timestamp() * 1_000_000)
+    event_id = f"driver_status:{user_id}:{timestamp_token}"
+    base_payload = {
+        "type": "driver_status",
+        "status": normalized_status,
+        "title": title,
+        "message": message,
+        "user_id": user_id,
+        "event_id": event_id,
+    }
+    if driver_id is not None:
+        base_payload["driver_id"] = driver_id
+    if application_id is not None:
+        base_payload["application_id"] = application_id
+
+    user_payload = dict(base_payload)
+    user_payload["channel"] = "user"
+
+    driver_payload = None
+    if driver_id is not None:
+        driver_payload = dict(base_payload)
+        driver_payload["channel"] = "driver"
+
+    _dispatch_realtime_event(
+        user_id=user_id,
+        user_payload=user_payload,
+        driver_id=driver_id,
+        driver_payload=driver_payload,
+        broadcast_user=True,
+    )
+
+
+def _dispatch_realtime_event(
+    *,
+    user_id: Optional[int],
+    user_payload: Optional[dict],
+    driver_id: Optional[int] = None,
+    driver_payload: Optional[dict] = None,
+    broadcast_user: bool = False,
+):
+    """Send realtime payloads either via active manager loop or Redis fallback."""
+    if not user_payload and not driver_payload:
+        return
+
+    loop = getattr(manager, "_loop", None)
+    if loop:
+        async def _send():
+            tasks = []
+            if user_id and user_payload:
+                tasks.append(manager.send_to_user(user_id, user_payload))
+            if broadcast_user and user_payload:
+                tasks.append(manager.broadcast_to_all_users(user_payload))
+            if driver_id and driver_payload:
+                tasks.append(manager.send_to_driver(driver_id, driver_payload))
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+
+        manager.submit_background_task(_send())
+        return
+
+    _publish_realtime_via_redis(
+        user_id=user_id,
+        user_payload=user_payload,
+        driver_id=driver_id,
+        driver_payload=driver_payload,
+        broadcast_user=broadcast_user,
+    )
+
+
+def _publish_realtime_via_redis(
+    *,
+    user_id: Optional[int],
+    user_payload: Optional[dict],
+    driver_id: Optional[int],
+    driver_payload: Optional[dict],
+    broadcast_user: bool,
+):
+    """Fallback dispatcher used when websocket manager loop is unavailable."""
+    redis_url = settings.REDIS_URL
+    if not redis_url:
+        return
+
+    client = None
+    try:
+        client = redis.Redis.from_url(
+            redis_url,
+            encoding="utf-8",
+            decode_responses=True,
+        )
+    except Exception as exc:
+        print(f"Redis fallback connection error: {exc}")
+        return
+
+    def _publish(channel: str, payload: dict):
+        try:
+            client.publish(channel, json.dumps(payload))
+        except Exception as exc:
+            print(f"Redis fallback publish error: {exc}")
+
+    try:
+        if user_payload:
+            if user_id:
+                _publish("users_channel", {"user_id": user_id, "message": user_payload})
+            if broadcast_user:
+                _publish("users_channel", user_payload)
+        if driver_payload and driver_id:
+            _publish(
+                "drivers_channel",
+                {"driver_id": driver_id, "message": driver_payload},
+            )
+    finally:
+        if client:
+            try:
+                client.close()
+            except Exception:
+                pass

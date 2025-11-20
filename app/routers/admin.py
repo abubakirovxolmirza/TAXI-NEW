@@ -18,7 +18,11 @@ from app.schemas import (
     ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse
 )
 from app.auth import get_current_admin, get_current_superadmin
-from app.utils import create_notification, get_service_fee_percentage
+from app.utils import (
+    create_notification,
+    get_service_fee_percentage,
+    dispatch_driver_status_event,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -59,52 +63,97 @@ def review_application(
             detail="Application has already been reviewed"
         )
     
+    driver_status_event = None
+
     if review_data.approved:
-        # Approve application and create driver profile
+        # Approve application and create or update driver profile
         application.status = ApplicationStatus.APPROVED
-        
-        new_driver = Driver(
-            user_id=application.user_id,
-            full_name=application.full_name,
-            car_model=application.car_model,
-            car_number=application.car_number,
-            license_photo=application.license_photo
+
+        existing_driver = (
+            db.query(Driver)
+            .filter(Driver.user_id == application.user_id)
+            .first()
         )
-        
-        db.add(new_driver)
+
+        if existing_driver:
+            existing_driver.full_name = application.full_name
+            existing_driver.car_model = application.car_model
+            existing_driver.car_number = application.car_number
+            existing_driver.license_photo = application.license_photo
+            existing_driver.is_blocked = False
+            driver_record = existing_driver
+        else:
+            driver_record = Driver(
+                user_id=application.user_id,
+                full_name=application.full_name,
+                car_model=application.car_model,
+                car_number=application.car_number,
+                license_photo=application.license_photo
+            )
+            db.add(driver_record)
+            db.flush()
         
         # Update user role to driver
         user = db.query(User).filter(User.id == application.user_id).first()
         if user:
             user.role = UserRole.DRIVER
-        
+
+        approval_title = "Application Approved"
+        approval_message = (
+            "Congratulations! Your driver application has been approved."
+        )
+
+        driver_status_event = {
+            "status": "approved",
+            "title": approval_title,
+            "message": approval_message,
+            "driver_id": driver_record.id,
+            "application_id": application.id,
+        }
+
         # Notify user
         create_notification(
             db=db,
-            title="Application Approved",
-            message="Congratulations! Your driver application has been approved.",
+            title=approval_title,
+            message=approval_message,
             notification_type="application_approved",
-            user_id=application.user_id
+            user_id=application.user_id,
+            driver_status_payload=driver_status_event,
         )
     else:
         # Reject application
         application.status = ApplicationStatus.REJECTED
         application.rejection_reason = review_data.rejection_reason
-        
+
+        rejection_title = "Application Rejected"
+        rejection_reason = review_data.rejection_reason or "No reason provided"
+        rejection_message = (
+            f"Your driver application has been rejected. Reason: {rejection_reason}"
+        )
+
+        driver_status_event = {
+            "status": "rejected",
+            "title": rejection_title,
+            "message": rejection_message,
+            "driver_id": None,
+            "application_id": application.id,
+        }
+
         # Notify user
         create_notification(
             db=db,
-            title="Application Rejected",
-            message=f"Your driver application has been rejected. Reason: {review_data.rejection_reason}",
+            title=rejection_title,
+            message=rejection_message,
             notification_type="application_rejected",
-            user_id=application.user_id
+            user_id=application.user_id,
+            driver_status_payload=driver_status_event,
         )
     
     application.reviewed_by = current_user.id
     application.reviewed_at = datetime.now(timezone.utc)
     
     db.commit()
-    
+
     return {
         "success": True,
         "message": "Application reviewed successfully",
@@ -488,16 +537,41 @@ def update_user_role(
     user.role = role_data.role
     db.commit()
     db.refresh(user)
-    
+
     # Notify user
+    driver_record = (
+        db.query(Driver)
+        .filter(Driver.user_id == user.id)
+        .first()
+    )
+    driver_id = driver_record.id if driver_record else None
+    driver_status_event = None
+    if old_role == UserRole.DRIVER and role_data.role != UserRole.DRIVER:
+        driver_status_event = {
+            "status": "revoked",
+            "title": "Driver access revoked",
+            "message": "Your driver privileges have been revoked by the administrator.",
+        }
+    elif old_role != UserRole.DRIVER and role_data.role == UserRole.DRIVER:
+        driver_status_event = {
+            "status": "approved",
+            "title": "Driver access granted",
+            "message": "You have been granted driver privileges by the administrator.",
+        }
+
+    notification_message = (
+        f"Your role has been changed from {old_role.value} to {role_data.role.value}."
+    )
     create_notification(
         db=db,
         title="Role Updated",
-        message=f"Your role has been changed from {old_role.value} to {role_data.role.value}.",
+        message=notification_message,
         notification_type="role_updated",
-        user_id=role_data.user_id
+        user_id=role_data.user_id,
+        driver_id=driver_id,
+        driver_status_payload=driver_status_event,
     )
-    
+
     return user
 
 

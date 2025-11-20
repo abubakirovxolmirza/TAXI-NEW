@@ -234,24 +234,37 @@ async def apply_as_driver(
     db: Session = Depends(get_db)
 ):
     """Apply to become a driver"""
-    # Check if user already has a driver profile
-    if current_user.driver_profile:
+    # Check if user already has an active driver profile
+    if current_user.driver_profile and current_user.role == UserRole.DRIVER:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You are already a driver"
         )
     
-    # Check if there's already a pending application
+    # Check if user already has an application (any status)
     existing_application = db.query(DriverApplication).filter(
-        DriverApplication.user_id == current_user.id,
-        DriverApplication.status == ApplicationStatus.PENDING
+        DriverApplication.user_id == current_user.id
     ).first()
     
     if existing_application:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You already have a pending application"
-        )
+        if existing_application.status == ApplicationStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You already have a pending application"
+            )
+        # Update existing application and reset status to pending
+        existing_application.full_name = application_data.full_name
+        existing_application.car_model = application_data.car_model
+        existing_application.car_number = application_data.car_number
+        existing_application.license_photo = application_data.license_photo
+        existing_application.telephone = current_user.telephone
+        existing_application.status = ApplicationStatus.PENDING
+        existing_application.rejection_reason = None
+        existing_application.reviewed_by = None
+        existing_application.reviewed_at = None
+        db.commit()
+        db.refresh(existing_application)
+        return existing_application
     
     # Create application
     new_application = DriverApplication(

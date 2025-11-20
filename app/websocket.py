@@ -96,7 +96,7 @@ class ConnectionManager:
                             # Check if message is targeted (`{"user_id": 1, "message": {...}}`)
                             # or broadcast payload that already includes filtering metadata
                             if "user_id" in data and "message" in data:
-                                await self._send_local_user(data["user_id"], data["message"])
+                                await self._send_to_local_user(data["user_id"], data["message"])
                             else:
                                 # Broadcast to every connected user; clients must filter by `user_id`
                                 await self._broadcast_local_users(data)
