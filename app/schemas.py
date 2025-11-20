@@ -47,6 +47,7 @@ class PasswordChange(BaseModel):
 
 class SetPasswordRequest(BaseModel):
     """Schema for setting password without old password (for guest users)"""
+    telephone: str = Field(..., description="User's telephone number")
     new_password: str = Field(..., min_length=6, description="New password (minimum 6 characters)")
     confirm_password: str = Field(..., description="Confirm new password")
     

@@ -183,19 +183,29 @@ def change_password(
 @router.post("/set-password")
 def set_password(
     password_data: SetPasswordRequest,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Set password for guest users (users created without authentication).
-    This endpoint doesn't require the old password.
+    This endpoint doesn't require authentication or old password.
     Useful for users who were auto-created when placing orders without registration.
+    
+    Simply provide your telephone number and new password.
     """
-    # Update password directly (no old password check)
-    current_user.hashed_password = get_password_hash(password_data.new_password)
+    # Find user by telephone number
+    user = db.query(User).filter(User.telephone == password_data.telephone).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User with this telephone number not found"
+        )
+    
+    # Update password directly (no old password or token check)
+    user.hashed_password = get_password_hash(password_data.new_password)
     db.commit()
     
     return {
         "message": "Password set successfully. You can now login with your new password.",
-        "telephone": current_user.telephone
+        "telephone": user.telephone
     }
