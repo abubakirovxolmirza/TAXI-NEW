@@ -4,7 +4,7 @@ from app.database import get_db
 from app.models import User
 from app.schemas import (
     UserCreate, UserLogin, UserResponse, TokenResponse,
-    UserUpdate, PasswordChange
+    UserUpdate, PasswordChange, SetPasswordRequest
 )
 from app.auth import (
     get_password_hash, verify_password, create_access_token,
@@ -178,3 +178,24 @@ def change_password(
     db.commit()
     
     return {"message": "Password changed successfully"}
+
+
+@router.post("/set-password")
+def set_password(
+    password_data: SetPasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Set password for guest users (users created without authentication).
+    This endpoint doesn't require the old password.
+    Useful for users who were auto-created when placing orders without registration.
+    """
+    # Update password directly (no old password check)
+    current_user.hashed_password = get_password_hash(password_data.new_password)
+    db.commit()
+    
+    return {
+        "message": "Password set successfully. You can now login with your new password.",
+        "telephone": current_user.telephone
+    }

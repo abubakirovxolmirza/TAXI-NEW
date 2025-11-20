@@ -45,6 +45,18 @@ class PasswordChange(BaseModel):
         return v
 
 
+class SetPasswordRequest(BaseModel):
+    """Schema for setting password without old password (for guest users)"""
+    new_password: str = Field(..., min_length=6, description="New password (minimum 6 characters)")
+    confirm_password: str = Field(..., description="Confirm new password")
+    
+    @validator('confirm_password')
+    def passwords_match(cls, v, values):
+        if 'new_password' in values and v != values['new_password']:
+            raise ValueError('Passwords do not match')
+        return v
+
+
 class UserRoleUpdate(BaseModel):
     user_id: int
     role: UserRole
