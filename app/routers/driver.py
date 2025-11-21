@@ -646,7 +646,9 @@ def get_active_orders(
                 "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
                 "status": order.status.value,
                 "note": order.note,
-                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None
+                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
+                "is_confirmed": order.is_confirmed,
+                "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None
             }
             for order in taxi_orders
         ],
@@ -678,7 +680,9 @@ def get_active_orders(
                 "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
                 "status": order.status.value,
                 "note": order.note,
-                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None
+                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
+                "is_confirmed": order.is_confirmed,
+                "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None
             }
             for order in delivery_orders
         ]
