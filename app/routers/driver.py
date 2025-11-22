@@ -37,12 +37,20 @@ router = APIRouter(prefix="/api/driver", tags=["Driver"])
 
 ACTIVE_ORDER_STATUSES = (OrderStatus.PENDING, OrderStatus.ACCEPTED)
 DRIVER_CANCEL_BLOCK_TTL_SECONDS = 24 * 60 * 60  # 24 hours
+DEFAULT_PAGE_SIZE = 10
+MAX_PAGE_SIZE = 100
 
 # In-memory fallback store when Redis is unavailable
 _driver_cancelled_orders: dict[str, dict[int, Set[int]]] = {
     "taxi": {},
     "delivery": {},
 }
+
+
+def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[int, int]:
+    safe_limit = DEFAULT_PAGE_SIZE if limit is None or limit <= 0 else min(limit, MAX_PAGE_SIZE)
+    safe_offset = 0 if offset is None or offset < 0 else offset
+    return safe_limit, safe_offset
 
 
 def _get_local_cancelled(driver_id: int, order_type: str) -> Set[int]:
@@ -328,6 +336,8 @@ async def _collect_available_orders_for_driver(
     db: Session,
     from_region_id: Optional[int] = None,
     to_region_id: Optional[int] = None,
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
 ) -> dict:
     """
     Build the available (pending) orders payload for a driver.
@@ -335,6 +345,8 @@ async def _collect_available_orders_for_driver(
     - Excludes orders held/confirmed by other drivers.
     - Excludes orders the current driver cancelled/rejected.
     """
+    limit, offset = _normalize_pagination(limit, offset)
+    fetch_size = limit + offset + 1
     blocked_taxi_ids = await _get_driver_cancelled_orders(driver.id, "taxi")
     blocked_delivery_ids = await _get_driver_cancelled_orders(driver.id, "delivery")
 
@@ -366,60 +378,87 @@ async def _collect_available_orders_for_driver(
     if blocked_delivery_ids:
         delivery_query = delivery_query.filter(~DeliveryOrder.id.in_(blocked_delivery_ids))
 
-    taxi_orders = taxi_query.order_by(TaxiOrder.created_at.desc()).all()
-    delivery_orders = delivery_query.order_by(DeliveryOrder.created_at.desc()).all()
+    taxi_orders = taxi_query.order_by(TaxiOrder.created_at.desc()).limit(fetch_size).all()
+    delivery_orders = (
+        delivery_query.order_by(DeliveryOrder.created_at.desc()).limit(fetch_size).all()
+    )
+
+    combined: list[tuple[str, Union[TaxiOrder, DeliveryOrder], datetime]] = []
+    combined.extend(
+        ("taxi", order, order.created_at or datetime.min) for order in taxi_orders
+    )
+    combined.extend(
+        ("delivery", order, order.created_at or datetime.min) for order in delivery_orders
+    )
+    combined.sort(key=lambda item: item[2], reverse=True)
+    window = combined[offset : offset + limit]
+    has_more = len(combined) > offset + limit
+
+    taxi_payload: List[dict] = []
+    delivery_payload: List[dict] = []
+
+    for item in window:
+        order_type, order, _ = item
+        if order_type == "taxi" and isinstance(order, TaxiOrder):
+            taxi_payload.append(
+                {
+                    "id": order.id,
+                    "type": "taxi",
+                    "user_id": order.user_id,
+                    "driver_id": order.driver_id,
+                    "from_region_id": order.from_region_id,
+                    "to_region_id": order.to_region_id,
+                    "passengers": order.passengers,
+                    "price": str(order.price),
+                    "date": order.date,
+                    "time_start": order.time_start,
+                    "time_end": order.time_end,
+                    "scheduled_datetime": order.scheduled_datetime.isoformat()
+                    if order.scheduled_datetime
+                    else None,
+                    "created_at": order.created_at.isoformat(),
+                    "is_confirmed": order.is_confirmed,
+                    "confirmed_at": order.confirmed_at.isoformat()
+                    if order.confirmed_at
+                    else None,
+                    "status": order.status.value,
+                },
+            )
+        elif order_type == "delivery" and isinstance(order, DeliveryOrder):
+            delivery_payload.append(
+                {
+                    "id": order.id,
+                    "type": "delivery",
+                    "user_id": order.user_id,
+                    "driver_id": order.driver_id,
+                    "from_region_id": order.from_region_id,
+                    "to_region_id": order.to_region_id,
+                    "item_type": order.item_type.value,
+                    "price": str(order.price),
+                    "date": order.date,
+                    "time_start": order.time_start,
+                    "time_end": order.time_end,
+                    "scheduled_datetime": order.scheduled_datetime.isoformat()
+                    if order.scheduled_datetime
+                    else None,
+                    "created_at": order.created_at.isoformat(),
+                    "is_confirmed": order.is_confirmed,
+                    "confirmed_at": order.confirmed_at.isoformat()
+                    if order.confirmed_at
+                    else None,
+                    "status": order.status.value,
+                },
+            )
 
     return {
-        "taxi_orders": [
-            {
-                "id": order.id,
-                "type": "taxi",
-                "user_id": order.user_id,
-                "driver_id": order.driver_id,
-                "from_region_id": order.from_region_id,
-                "to_region_id": order.to_region_id,
-                "passengers": order.passengers,
-                "price": str(order.price),
-                "date": order.date,
-                "time_start": order.time_start,
-                "time_end": order.time_end,
-                "scheduled_datetime": order.scheduled_datetime.isoformat()
-                if order.scheduled_datetime
-                else None,
-                "created_at": order.created_at.isoformat(),
-                "is_confirmed": order.is_confirmed,
-                "confirmed_at": order.confirmed_at.isoformat()
-                if order.confirmed_at
-                else None,
-                "status": order.status.value,
-            }
-            for order in taxi_orders
-        ],
-        "delivery_orders": [
-            {
-                "id": order.id,
-                "type": "delivery",
-                "user_id": order.user_id,
-                "driver_id": order.driver_id,
-                "from_region_id": order.from_region_id,
-                "to_region_id": order.to_region_id,
-                "item_type": order.item_type.value,
-                "price": str(order.price),
-                "date": order.date,
-                "time_start": order.time_start,
-                "time_end": order.time_end,
-                "scheduled_datetime": order.scheduled_datetime.isoformat()
-                if order.scheduled_datetime
-                else None,
-                "created_at": order.created_at.isoformat(),
-                "is_confirmed": order.is_confirmed,
-                "confirmed_at": order.confirmed_at.isoformat()
-                if order.confirmed_at
-                else None,
-                "status": order.status.value,
-            }
-            for order in delivery_orders
-        ],
+        "taxi_orders": taxi_payload,
+        "delivery_orders": delivery_payload,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(window),
+            "has_more": has_more,
+        },
     }
 
 
@@ -756,6 +795,8 @@ def get_driver_statistics(
 @router.get("/orders/my-orders")
 def get_my_orders(
     status_filter: Optional[OrderStatus] = None,
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
     current_user: User = Depends(get_current_driver),
     db: Session = Depends(get_db)
 ):
@@ -769,6 +810,9 @@ def get_my_orders(
         )
     
     # Build query for taxi orders assigned to this driver
+    limit, offset = _normalize_pagination(limit, offset)
+    fetch_size = limit + offset + 1
+
     taxi_query = db.query(TaxiOrder).filter(TaxiOrder.driver_id == driver.id)
     delivery_query = db.query(DeliveryOrder).filter(DeliveryOrder.driver_id == driver.id)
     
@@ -777,78 +821,127 @@ def get_my_orders(
         taxi_query = taxi_query.filter(TaxiOrder.status == status_filter)
         delivery_query = delivery_query.filter(DeliveryOrder.status == status_filter)
     
-    taxi_orders = taxi_query.order_by(TaxiOrder.created_at.desc()).all()
-    delivery_orders = delivery_query.order_by(DeliveryOrder.created_at.desc()).all()
-    
+    taxi_orders = (
+        taxi_query.order_by(TaxiOrder.created_at.desc()).limit(fetch_size).all()
+    )
+    delivery_orders = (
+        delivery_query.order_by(DeliveryOrder.created_at.desc()).limit(fetch_size).all()
+    )
+
+    combined: list[tuple[str, Union[TaxiOrder, DeliveryOrder], datetime]] = []
+    combined.extend(
+        ("taxi", order, order.created_at or datetime.min) for order in taxi_orders
+    )
+    combined.extend(
+        ("delivery", order, order.created_at or datetime.min)
+        for order in delivery_orders
+    )
+    combined.sort(key=lambda item: item[2], reverse=True)
+    window = combined[offset : offset + limit]
+    has_more = len(combined) > offset + limit
+
+    taxi_payload: List[dict] = []
+    delivery_payload: List[dict] = []
+
+    for order_type, order, _ in window:
+        if order_type == "taxi" and isinstance(order, TaxiOrder):
+            taxi_payload.append(
+                {
+                    "id": order.id,
+                    "type": "taxi",
+                    "user_id": order.user_id,
+                    "username": order.username,
+                    "telephone": order.telephone,
+                    "from_region_id": order.from_region_id,
+                    "from_district_id": order.from_district_id,
+                    "to_region_id": order.to_region_id,
+                    "to_district_id": order.to_district_id,
+                    "pickup_address": order.pickup_address,
+                    "pickup_latitude": order.pickup_latitude,
+                    "pickup_longitude": order.pickup_longitude,
+                    "passengers": order.passengers,
+                    "price": str(order.price),
+                    "service_fee": str(order.service_fee),
+                    "driver_earnings": str(order.driver_earnings),
+                    "date": order.date,
+                    "time_start": order.time_start,
+                    "time_end": order.time_end,
+                    "scheduled_datetime": order.scheduled_datetime.isoformat()
+                    if order.scheduled_datetime
+                    else None,
+                    "status": order.status.value,
+                    "note": order.note,
+                    "created_at": order.created_at.isoformat()
+                    if order.created_at
+                    else None,
+                    "accepted_at": order.accepted_at.isoformat()
+                    if order.accepted_at
+                    else None,
+                    "completed_at": order.completed_at.isoformat()
+                    if order.completed_at
+                    else None,
+                    "is_confirmed": order.is_confirmed,
+                    "confirmed_at": order.confirmed_at.isoformat()
+                    if order.confirmed_at
+                    else None,
+                },
+            )
+        elif order_type == "delivery" and isinstance(order, DeliveryOrder):
+            delivery_payload.append(
+                {
+                    "id": order.id,
+                    "type": "delivery",
+                    "user_id": order.user_id,
+                    "username": order.username,
+                    "sender_telephone": order.sender_telephone,
+                    "receiver_telephone": order.receiver_telephone,
+                    "from_region_id": order.from_region_id,
+                    "from_district_id": order.from_district_id,
+                    "to_region_id": order.to_region_id,
+                    "to_district_id": order.to_district_id,
+                    "pickup_address": order.pickup_address,
+                    "pickup_latitude": order.pickup_latitude,
+                    "pickup_longitude": order.pickup_longitude,
+                    "dropoff_address": order.dropoff_address,
+                    "dropoff_latitude": order.dropoff_latitude,
+                    "dropoff_longitude": order.dropoff_longitude,
+                    "item_type": order.item_type.value,
+                    "price": str(order.price),
+                    "service_fee": str(order.service_fee),
+                    "driver_earnings": str(order.driver_earnings),
+                    "date": order.date,
+                    "time_start": order.time_start,
+                    "time_end": order.time_end,
+                    "scheduled_datetime": order.scheduled_datetime.isoformat()
+                    if order.scheduled_datetime
+                    else None,
+                    "status": order.status.value,
+                    "note": order.note,
+                    "created_at": order.created_at.isoformat()
+                    if order.created_at
+                    else None,
+                    "accepted_at": order.accepted_at.isoformat()
+                    if order.accepted_at
+                    else None,
+                    "completed_at": order.completed_at.isoformat()
+                    if order.completed_at
+                    else None,
+                    "is_confirmed": order.is_confirmed,
+                    "confirmed_at": order.confirmed_at.isoformat()
+                    if order.confirmed_at
+                    else None,
+                },
+            )
+
     return {
-        "taxi_orders": [
-            {
-                "id": order.id,
-                "type": "taxi",
-                "user_id": order.user_id,
-                "username": order.username,
-                "telephone": order.telephone,
-                "from_region_id": order.from_region_id,
-                "from_district_id": order.from_district_id,
-                "to_region_id": order.to_region_id,
-                "to_district_id": order.to_district_id,
-                "pickup_address": order.pickup_address,
-                "pickup_latitude": order.pickup_latitude,
-                "pickup_longitude": order.pickup_longitude,
-                "passengers": order.passengers,
-                "price": str(order.price),
-                "service_fee": str(order.service_fee),
-                "driver_earnings": str(order.driver_earnings),
-                "date": order.date,
-                "time_start": order.time_start,
-                "time_end": order.time_end,
-                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
-                "status": order.status.value,
-                "note": order.note,
-                "created_at": order.created_at.isoformat(),
-                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
-                "completed_at": order.completed_at.isoformat() if order.completed_at else None,
-                "is_confirmed": order.is_confirmed,
-                "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
-            }
-            for order in taxi_orders
-        ],
-        "delivery_orders": [
-            {
-                "id": order.id,
-                "type": "delivery",
-                "user_id": order.user_id,
-                "username": order.username,
-                "sender_telephone": order.sender_telephone,
-                "receiver_telephone": order.receiver_telephone,
-                "from_region_id": order.from_region_id,
-                "from_district_id": order.from_district_id,
-                "to_region_id": order.to_region_id,
-                "to_district_id": order.to_district_id,
-                "pickup_address": order.pickup_address,
-                "pickup_latitude": order.pickup_latitude,
-                "pickup_longitude": order.pickup_longitude,
-                "dropoff_address": order.dropoff_address,
-                "dropoff_latitude": order.dropoff_latitude,
-                "dropoff_longitude": order.dropoff_longitude,
-                "item_type": order.item_type.value,
-                "price": str(order.price),
-                "service_fee": str(order.service_fee),
-                "driver_earnings": str(order.driver_earnings),
-                "date": order.date,
-                "time_start": order.time_start,
-                "time_end": order.time_end,
-                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
-                "status": order.status.value,
-                "note": order.note,
-                "created_at": order.created_at.isoformat(),
-                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
-                "completed_at": order.completed_at.isoformat() if order.completed_at else None,
-                "is_confirmed": order.is_confirmed,
-                "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
-            }
-            for order in delivery_orders
-        ]
+        "taxi_orders": taxi_payload,
+        "delivery_orders": delivery_payload,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(window),
+            "has_more": has_more,
+        },
     }
 
 
@@ -856,6 +949,8 @@ def get_my_orders(
 async def get_active_orders(
     from_region_id: int = None,
     to_region_id: int = None,
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
     current_user: User = Depends(get_current_driver),
     db: Session = Depends(get_db),
 ):
@@ -878,6 +973,8 @@ async def get_active_orders(
         db,
         from_region_id=from_region_id,
         to_region_id=to_region_id,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -950,6 +1047,8 @@ def get_order_history(
 async def get_new_orders(
     from_region_id: int = None,
     to_region_id: int = None,
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
     current_user: User = Depends(get_current_driver),
     db: Session = Depends(get_db),
 ):
@@ -967,6 +1066,8 @@ async def get_new_orders(
         db,
         from_region_id=from_region_id,
         to_region_id=to_region_id,
+        limit=limit,
+        offset=offset,
     )
 
 

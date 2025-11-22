@@ -7,8 +7,22 @@ from app.database import get_db
 from app.models import User, TaxiOrder, OrderStatus, Driver, UserRole
 from app.schemas import TaxiOrderCreate, TaxiOrderResponse, OrderCancellation, BulkDeleteRequest
 from app.auth import get_current_user, get_optional_user
-from app.utils import calculate_taxi_price, create_notification, calculate_service_fee, get_or_create_guest_user
+from app.utils import (
+    calculate_service_fee,
+    calculate_taxi_price,
+    create_notification,
+    get_or_create_guest_user,
+)
 from app.websocket import manager, convert_decimal_to_float
+
+DEFAULT_PAGE_SIZE = 10
+MAX_PAGE_SIZE = 100
+
+
+def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[int, int]:
+    safe_limit = DEFAULT_PAGE_SIZE if limit is None or limit <= 0 else min(limit, MAX_PAGE_SIZE)
+    safe_offset = 0 if offset is None or offset < 0 else offset
+    return safe_limit, safe_offset
 
 router = APIRouter(prefix="/api/taxi-orders", tags=["Taxi Orders"])
 
@@ -104,43 +118,52 @@ async def create_taxi_order(
 @router.get("/", response_model=List[TaxiOrderResponse])
 def get_all_taxi_orders(
     status_filter: Optional[OrderStatus] = None,
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get all taxi orders"""
+    limit, offset = _normalize_pagination(limit, offset)
     query = db.query(TaxiOrder)
     
     if status_filter:
         query = query.filter(TaxiOrder.status == status_filter)
     
-    orders = query.order_by(TaxiOrder.created_at.desc()).all()
+    orders = query.order_by(TaxiOrder.created_at.desc()).offset(offset).limit(limit).all()
     return orders
 
 
 @router.get("/active", response_model=List[TaxiOrderResponse])
 def get_active_taxi_orders(
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get active taxi orders (pending or accepted)"""
+    limit, offset = _normalize_pagination(limit, offset)
     orders = db.query(TaxiOrder).filter(
         TaxiOrder.user_id == current_user.id,
         TaxiOrder.status.in_([OrderStatus.PENDING, OrderStatus.ACCEPTED])
-    ).order_by(TaxiOrder.created_at.desc()).all()
+    ).order_by(TaxiOrder.created_at.desc()).offset(offset).limit(limit).all()
     
     return orders
 
 
 @router.get("/history", response_model=List[TaxiOrderResponse])
 def get_taxi_order_history(
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get completed and cancelled taxi orders"""
+    limit, offset = _normalize_pagination(limit, offset)
     orders = db.query(TaxiOrder).filter(
         TaxiOrder.user_id == current_user.id,
         TaxiOrder.status.in_([OrderStatus.COMPLETED, OrderStatus.CANCELLED])
-    ).order_by(TaxiOrder.completed_at.desc()).all()
+    ).order_by(TaxiOrder.completed_at.desc()).offset(offset).limit(limit).all()
     
     return orders
 

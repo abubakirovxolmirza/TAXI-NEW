@@ -9,6 +9,15 @@ from app.auth import get_current_user, get_optional_user
 from app.utils import calculate_delivery_price, create_notification, calculate_service_fee, get_or_create_guest_user
 from app.websocket import manager
 
+DEFAULT_PAGE_SIZE = 10
+MAX_PAGE_SIZE = 100
+
+
+def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[int, int]:
+    safe_limit = DEFAULT_PAGE_SIZE if limit is None or limit <= 0 else min(limit, MAX_PAGE_SIZE)
+    safe_offset = 0 if offset is None or offset < 0 else offset
+    return safe_limit, safe_offset
+
 router = APIRouter(prefix="/api/delivery-orders", tags=["Delivery Orders"])
 
 
@@ -105,43 +114,52 @@ async def create_delivery_order(
 @router.get("/", response_model=List[DeliveryOrderResponse])
 def get_all_delivery_orders(
     status_filter: Optional[OrderStatus] = None,
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get all delivery orders"""
+    limit, offset = _normalize_pagination(limit, offset)
     query = db.query(DeliveryOrder)
     
     if status_filter:
         query = query.filter(DeliveryOrder.status == status_filter)
     
-    orders = query.order_by(DeliveryOrder.created_at.desc()).all()
+    orders = query.order_by(DeliveryOrder.created_at.desc()).offset(offset).limit(limit).all()
     return orders
 
 
 @router.get("/active", response_model=List[DeliveryOrderResponse])
 def get_active_delivery_orders(
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get active delivery orders (pending or accepted)"""
+    limit, offset = _normalize_pagination(limit, offset)
     orders = db.query(DeliveryOrder).filter(
         DeliveryOrder.user_id == current_user.id,
         DeliveryOrder.status.in_([OrderStatus.PENDING, OrderStatus.ACCEPTED])
-    ).order_by(DeliveryOrder.created_at.desc()).all()
+    ).order_by(DeliveryOrder.created_at.desc()).offset(offset).limit(limit).all()
     
     return orders
 
 
 @router.get("/history", response_model=List[DeliveryOrderResponse])
 def get_delivery_order_history(
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get completed and cancelled delivery orders"""
+    limit, offset = _normalize_pagination(limit, offset)
     orders = db.query(DeliveryOrder).filter(
         DeliveryOrder.user_id == current_user.id,
         DeliveryOrder.status.in_([OrderStatus.COMPLETED, OrderStatus.CANCELLED])
-    ).order_by(DeliveryOrder.completed_at.desc()).all()
+    ).order_by(DeliveryOrder.completed_at.desc()).offset(offset).limit(limit).all()
     
     return orders
 
