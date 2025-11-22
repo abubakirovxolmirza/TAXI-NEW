@@ -3,11 +3,11 @@ import shutil
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Set, Union
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, extract, func
+from sqlalchemy import and_, extract, func, or_
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_driver, get_current_user
@@ -36,6 +36,77 @@ from app.websocket import manager
 router = APIRouter(prefix="/api/driver", tags=["Driver"])
 
 ACTIVE_ORDER_STATUSES = (OrderStatus.PENDING, OrderStatus.ACCEPTED)
+DRIVER_CANCEL_BLOCK_TTL_SECONDS = 24 * 60 * 60  # 24 hours
+
+# In-memory fallback store when Redis is unavailable
+_driver_cancelled_orders: dict[str, dict[int, Set[int]]] = {
+    "taxi": {},
+    "delivery": {},
+}
+
+
+def _get_local_cancelled(driver_id: int, order_type: str) -> Set[int]:
+    """Fetch the local blacklist set for a driver/order_type combo."""
+    if order_type not in _driver_cancelled_orders:
+        _driver_cancelled_orders[order_type] = {}
+    bucket = _driver_cancelled_orders[order_type]
+    if driver_id not in bucket:
+        bucket[driver_id] = set()
+    return bucket[driver_id]
+
+
+async def _add_driver_cancelled_order(driver_id: int, order_id: int, order_type: str):
+    """Remember that a driver cancelled/rejected an order (Redis + in-memory fallback)."""
+    try:
+        order_id_int = int(order_id)
+    except (TypeError, ValueError):
+        return
+
+    _get_local_cancelled(driver_id, order_type).add(order_id_int)
+
+    if manager.redis_pool:
+        try:
+            key = f"driver_cancelled:{order_type}:{driver_id}"
+            await manager.redis_pool.sadd(key, str(order_id_int))
+            await manager.redis_pool.expire(key, DRIVER_CANCEL_BLOCK_TTL_SECONDS)
+        except Exception:
+            pass
+
+
+async def _get_driver_cancelled_orders(driver_id: int, order_type: str) -> Set[int]:
+    """Return the set of order IDs a driver has cancelled/rejected."""
+    blocked = set(_get_local_cancelled(driver_id, order_type))
+
+    if manager.redis_pool:
+        try:
+            key = f"driver_cancelled:{order_type}:{driver_id}"
+            members = await manager.redis_pool.smembers(key)
+            for item in members:
+                try:
+                    blocked.add(int(item))
+                except (TypeError, ValueError):
+                    continue
+        except Exception:
+            pass
+
+    return blocked
+
+
+def _should_block_driver(reason: Optional[str]) -> bool:
+    """Determine if a release/reject reason should blacklist the driver from the order."""
+    if not reason:
+        return False
+    normalized = reason.strip().lower()
+    return normalized in {
+        "cancel",
+        "cancelled",
+        "canceled",
+        "driver_cancelled",
+        "driver_cancelled_manual",
+        "reject",
+        "rejected",
+        "manual",
+    }
 
 
 def _build_driver_payload(driver: Driver) -> dict:
@@ -116,6 +187,31 @@ def _enum_value(value):
     if value is None:
         return None
     return getattr(value, "value", str(value))
+
+
+def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], order_type: str) -> dict:
+    base = {
+        "id": order.id,
+        "type": order_type,
+        "user_id": order.user_id,
+        "driver_id": order.driver_id,
+        "from_region_id": order.from_region_id,
+        "to_region_id": order.to_region_id,
+        "price": _decimal_to_float(order.price),
+        "date": order.date,
+        "time_start": order.time_start,
+        "time_end": order.time_end,
+        "scheduled_datetime": _datetime_to_iso(order.scheduled_datetime),
+        "created_at": _datetime_to_iso(order.created_at),
+        "is_confirmed": order.is_confirmed,
+        "confirmed_at": _datetime_to_iso(order.confirmed_at),
+        "status": _enum_value(order.status),
+    }
+    if isinstance(order, TaxiOrder):
+        base["passengers"] = order.passengers
+    if isinstance(order, DeliveryOrder):
+        base["item_type"] = _enum_value(order.item_type)
+    return base
 
 
 def _serialize_taxi_order_for_passenger(order: TaxiOrder) -> dict:
@@ -225,6 +321,162 @@ async def _push_passenger_active_orders_snapshot(user_id: int, db: Session):
         manager.send_to_user(user_id, payload),
         manager.broadcast_to_all_users(payload),
     )
+
+
+async def _collect_available_orders_for_driver(
+    driver: Driver,
+    db: Session,
+    from_region_id: Optional[int] = None,
+    to_region_id: Optional[int] = None,
+) -> dict:
+    """
+    Build the available (pending) orders payload for a driver.
+
+    - Excludes orders held/confirmed by other drivers.
+    - Excludes orders the current driver cancelled/rejected.
+    """
+    blocked_taxi_ids = await _get_driver_cancelled_orders(driver.id, "taxi")
+    blocked_delivery_ids = await _get_driver_cancelled_orders(driver.id, "delivery")
+
+    taxi_query = db.query(TaxiOrder).filter(
+        TaxiOrder.status == OrderStatus.PENDING,
+        or_(TaxiOrder.driver_id.is_(None), TaxiOrder.driver_id == driver.id),
+        or_(TaxiOrder.is_confirmed.is_(False), TaxiOrder.driver_id == driver.id),
+    )
+    delivery_query = db.query(DeliveryOrder).filter(
+        DeliveryOrder.status == OrderStatus.PENDING,
+        or_(DeliveryOrder.driver_id.is_(None), DeliveryOrder.driver_id == driver.id),
+        or_(DeliveryOrder.is_confirmed.is_(False), DeliveryOrder.driver_id == driver.id),
+    )
+
+    if from_region_id:
+        taxi_query = taxi_query.filter(TaxiOrder.from_region_id == from_region_id)
+        delivery_query = delivery_query.filter(
+            DeliveryOrder.from_region_id == from_region_id,
+        )
+
+    if to_region_id:
+        taxi_query = taxi_query.filter(TaxiOrder.to_region_id == to_region_id)
+        delivery_query = delivery_query.filter(
+            DeliveryOrder.to_region_id == to_region_id,
+        )
+
+    if blocked_taxi_ids:
+        taxi_query = taxi_query.filter(~TaxiOrder.id.in_(blocked_taxi_ids))
+    if blocked_delivery_ids:
+        delivery_query = delivery_query.filter(~DeliveryOrder.id.in_(blocked_delivery_ids))
+
+    taxi_orders = taxi_query.order_by(TaxiOrder.created_at.desc()).all()
+    delivery_orders = delivery_query.order_by(DeliveryOrder.created_at.desc()).all()
+
+    return {
+        "taxi_orders": [
+            {
+                "id": order.id,
+                "type": "taxi",
+                "user_id": order.user_id,
+                "driver_id": order.driver_id,
+                "from_region_id": order.from_region_id,
+                "to_region_id": order.to_region_id,
+                "passengers": order.passengers,
+                "price": str(order.price),
+                "date": order.date,
+                "time_start": order.time_start,
+                "time_end": order.time_end,
+                "scheduled_datetime": order.scheduled_datetime.isoformat()
+                if order.scheduled_datetime
+                else None,
+                "created_at": order.created_at.isoformat(),
+                "is_confirmed": order.is_confirmed,
+                "confirmed_at": order.confirmed_at.isoformat()
+                if order.confirmed_at
+                else None,
+                "status": order.status.value,
+            }
+            for order in taxi_orders
+        ],
+        "delivery_orders": [
+            {
+                "id": order.id,
+                "type": "delivery",
+                "user_id": order.user_id,
+                "driver_id": order.driver_id,
+                "from_region_id": order.from_region_id,
+                "to_region_id": order.to_region_id,
+                "item_type": order.item_type.value,
+                "price": str(order.price),
+                "date": order.date,
+                "time_start": order.time_start,
+                "time_end": order.time_end,
+                "scheduled_datetime": order.scheduled_datetime.isoformat()
+                if order.scheduled_datetime
+                else None,
+                "created_at": order.created_at.isoformat(),
+                "is_confirmed": order.is_confirmed,
+                "confirmed_at": order.confirmed_at.isoformat()
+                if order.confirmed_at
+                else None,
+                "status": order.status.value,
+            }
+            for order in delivery_orders
+        ],
+    }
+
+
+async def _broadcast_order_to_eligible_drivers(
+    payload: dict,
+    order_id: int,
+    order_type: str,
+    exclude_driver_ids: Optional[Set[int]] = None,
+):
+    """
+    Send an order payload only to drivers who haven't cancelled/rejected it.
+    Falls back to a full broadcast if we can't resolve active driver ids.
+    """
+    try:
+        normalized_order_id = int(order_id)
+    except (TypeError, ValueError):
+        normalized_order_id = None
+
+    normalized_exclude: Set[int] = set()
+    if exclude_driver_ids:
+        for driver_id in exclude_driver_ids:
+            try:
+                normalized_exclude.add(int(driver_id))
+            except (TypeError, ValueError):
+                continue
+
+    candidate_driver_ids: Set[int] = set(manager.driver_connections.keys())
+    if manager.redis_pool:
+        try:
+            active_driver_ids = await manager.redis_pool.smembers("active_drivers")
+            for raw_id in active_driver_ids:
+                try:
+                    candidate_driver_ids.add(int(raw_id))
+                except (TypeError, ValueError):
+                    continue
+        except Exception:
+            pass
+
+    # If we failed to resolve active drivers or order id, keep old behaviour.
+    if not candidate_driver_ids or normalized_order_id is None:
+        await manager.broadcast_to_all_drivers(payload)
+        return
+
+    sanitized_payload = dict(payload)
+    sanitized_payload.pop("_exclude_driver_ids", None)
+
+    send_tasks = []
+    for driver_id in candidate_driver_ids:
+        if driver_id in normalized_exclude:
+            continue
+        cancelled_orders = await _get_driver_cancelled_orders(driver_id, order_type)
+        if normalized_order_id in cancelled_orders:
+            continue
+        send_tasks.append(manager.send_to_driver(driver_id, sanitized_payload))
+
+    if send_tasks:
+        await asyncio.gather(*send_tasks, return_exceptions=True)
 
 
 @router.post("/apply", response_model=DriverApplicationResponse, status_code=status.HTTP_201_CREATED)
@@ -555,7 +807,9 @@ def get_my_orders(
                 "note": order.note,
                 "created_at": order.created_at.isoformat(),
                 "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
-                "completed_at": order.completed_at.isoformat() if order.completed_at else None
+                "completed_at": order.completed_at.isoformat() if order.completed_at else None,
+                "is_confirmed": order.is_confirmed,
+                "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
             }
             for order in taxi_orders
         ],
@@ -589,7 +843,9 @@ def get_my_orders(
                 "note": order.note,
                 "created_at": order.created_at.isoformat(),
                 "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
-                "completed_at": order.completed_at.isoformat() if order.completed_at else None
+                "completed_at": order.completed_at.isoformat() if order.completed_at else None,
+                "is_confirmed": order.is_confirmed,
+                "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
             }
             for order in delivery_orders
         ]
@@ -597,96 +853,32 @@ def get_my_orders(
 
 
 @router.get("/orders/active")
-def get_active_orders(
+async def get_active_orders(
+    from_region_id: int = None,
+    to_region_id: int = None,
     current_user: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Get driver's currently active (accepted) orders"""
+    """
+    Get the current pool of active (pending/available) orders for drivers.
+
+    This endpoint now mirrors `/orders/new` so newly created orders are
+    discoverable, while hiding orders being viewed/held by other drivers.
+    """
     driver = current_user.driver_profile
-    
+
     if not driver:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Driver profile not found"
+            detail="Driver profile not found",
         )
-    
-    # Get only ACCEPTED orders
-    taxi_orders = db.query(TaxiOrder).filter(
-        TaxiOrder.driver_id == driver.id,
-        TaxiOrder.status == OrderStatus.ACCEPTED
-    ).order_by(TaxiOrder.accepted_at.desc()).all()
-    
-    delivery_orders = db.query(DeliveryOrder).filter(
-        DeliveryOrder.driver_id == driver.id,
-        DeliveryOrder.status == OrderStatus.ACCEPTED
-    ).order_by(DeliveryOrder.accepted_at.desc()).all()
-    
-    return {
-        "taxi_orders": [
-            {
-                "id": order.id,
-                "type": "taxi",
-                "user_id": order.user_id,
-                "username": order.username,
-                "telephone": order.telephone,
-                "from_region_id": order.from_region_id,
-                "from_district_id": order.from_district_id,
-                "to_region_id": order.to_region_id,
-                "to_district_id": order.to_district_id,
-                "pickup_address": order.pickup_address,
-                "pickup_latitude": order.pickup_latitude,
-                "pickup_longitude": order.pickup_longitude,
-                "passengers": order.passengers,
-                "price": str(order.price),
-                "service_fee": str(order.service_fee),
-                "driver_earnings": str(order.driver_earnings),
-                "date": order.date,
-                "time_start": order.time_start,
-                "time_end": order.time_end,
-                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
-                "status": order.status.value,
-                "note": order.note,
-                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
-                "is_confirmed": order.is_confirmed,
-                "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None
-            }
-            for order in taxi_orders
-        ],
-        "delivery_orders": [
-            {
-                "id": order.id,
-                "type": "delivery",
-                "user_id": order.user_id,
-                "username": order.username,
-                "sender_telephone": order.sender_telephone,
-                "receiver_telephone": order.receiver_telephone,
-                "from_region_id": order.from_region_id,
-                "from_district_id": order.from_district_id,
-                "to_region_id": order.to_region_id,
-                "to_district_id": order.to_district_id,
-                "pickup_address": order.pickup_address,
-                "pickup_latitude": order.pickup_latitude,
-                "pickup_longitude": order.pickup_longitude,
-                "dropoff_address": order.dropoff_address,
-                "dropoff_latitude": order.dropoff_latitude,
-                "dropoff_longitude": order.dropoff_longitude,
-                "item_type": order.item_type.value,
-                "price": str(order.price),
-                "service_fee": str(order.service_fee),
-                "driver_earnings": str(order.driver_earnings),
-                "date": order.date,
-                "time_start": order.time_start,
-                "time_end": order.time_end,
-                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
-                "status": order.status.value,
-                "note": order.note,
-                "accepted_at": order.accepted_at.isoformat() if order.accepted_at else None,
-                "is_confirmed": order.is_confirmed,
-                "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None
-            }
-            for order in delivery_orders
-        ]
-    }
+
+    return await _collect_available_orders_for_driver(
+        driver,
+        db,
+        from_region_id=from_region_id,
+        to_region_id=to_region_id,
+    )
 
 
 @router.get("/orders/history")
@@ -755,70 +947,196 @@ def get_order_history(
 
 
 @router.get("/orders/new")
-def get_new_orders(
+async def get_new_orders(
     from_region_id: int = None,
     to_region_id: int = None,
     current_user: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Get new pending orders for drivers"""
+    """Get new pending orders for drivers."""
     driver = current_user.driver_profile
-    
+
     if not driver:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Driver profile not found"
+            detail="Driver profile not found",
         )
-    
-    # Build query for taxi orders
-    taxi_query = db.query(TaxiOrder).filter(TaxiOrder.status == OrderStatus.PENDING)
-    delivery_query = db.query(DeliveryOrder).filter(DeliveryOrder.status == OrderStatus.PENDING)
-    
-    # Apply filters
-    if from_region_id:
-        taxi_query = taxi_query.filter(TaxiOrder.from_region_id == from_region_id)
-        delivery_query = delivery_query.filter(DeliveryOrder.from_region_id == from_region_id)
-    
-    if to_region_id:
-        taxi_query = taxi_query.filter(TaxiOrder.to_region_id == to_region_id)
-        delivery_query = delivery_query.filter(DeliveryOrder.to_region_id == to_region_id)
-    
-    taxi_orders = taxi_query.order_by(TaxiOrder.created_at.desc()).all()
-    delivery_orders = delivery_query.order_by(DeliveryOrder.created_at.desc()).all()
-    
+
+    return await _collect_available_orders_for_driver(
+        driver,
+        db,
+        from_region_id=from_region_id,
+        to_region_id=to_region_id,
+    )
+
+
+@router.post("/orders/preview/{order_type}/{order_id}")
+async def preview_order(
+    order_type: str,
+    order_id: int,
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db),
+):
+    """
+    Mark a pending order as being previewed by the current driver.
+
+    This sets `is_confirmed = True` for pending orders so that
+    they are treated as "held" and are not shown to other drivers.
+    """
+    driver = current_user.driver_profile
+
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found",
+        )
+
+    # Get order based on type
+    if order_type == "taxi":
+        order = db.query(TaxiOrder).filter(TaxiOrder.id == order_id).first()
+    elif order_type == "delivery":
+        order = db.query(DeliveryOrder).filter(DeliveryOrder.id == order_id).first()
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid order type. Must be 'taxi' or 'delivery'",
+        )
+
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        )
+
+    if order.status != OrderStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending orders can be previewed",
+        )
+
+    # If another driver is already holding this order, deny preview
+    if order.driver_id and order.driver_id != driver.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Order is currently reserved by another driver",
+        )
+
+    # Mark order as held by this driver (but still pending)
+    order.driver_id = driver.id
+    order.is_confirmed = True
+    order.accepted_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(order)
+
+    # Broadcast reservation so other drivers hide this order
+    await manager.broadcast_to_all_drivers(
+        {
+            "type": "order_reserved",
+            "order_id": order.id,
+            "order_type": order_type,
+            "driver_id": driver.id,
+            "reserved_until": order.accepted_at.isoformat()
+            if order.accepted_at
+            else datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
     return {
-        "taxi_orders": [
-            {
-                "id": order.id,
-                "type": "taxi",
-                "from_region_id": order.from_region_id,
-                "to_region_id": order.to_region_id,
-                "passengers": order.passengers,
-                "price": str(order.price),
-                "date": order.date,
-                "time_start": order.time_start,
-                "time_end": order.time_end,
-                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
-                "created_at": order.created_at.isoformat()
-            }
-            for order in taxi_orders
-        ],
-        "delivery_orders": [
-            {
-                "id": order.id,
-                "type": "delivery",
-                "from_region_id": order.from_region_id,
-                "to_region_id": order.to_region_id,
-                "item_type": order.item_type,
-                "price": str(order.price),
-                "date": order.date,
-                "time_start": order.time_start,
-                "time_end": order.time_end,
-                "scheduled_datetime": order.scheduled_datetime.isoformat() if order.scheduled_datetime else None,
-                "created_at": order.created_at.isoformat()
-            }
-            for order in delivery_orders
-        ]
+        "success": True,
+        "message": "Order preview started",
+        "order": {
+            "id": order.id,
+            "type": order_type,
+            "status": order.status.value,
+            "is_confirmed": order.is_confirmed,
+        },
+    }
+
+
+@router.post("/orders/preview/release/{order_type}/{order_id}")
+async def release_preview_order(
+    order_type: str,
+    order_id: int,
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db),
+    reason: Optional[str] = Body(default=None, embed=True),
+):
+    """
+    Release preview/hold for a pending order so that it becomes visible
+    to other drivers again.
+    """
+    driver = current_user.driver_profile
+
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found",
+        )
+
+    # Get order based on type
+    if order_type == "taxi":
+        order = db.query(TaxiOrder).filter(TaxiOrder.id == order_id).first()
+    elif order_type == "delivery":
+        order = db.query(DeliveryOrder).filter(DeliveryOrder.id == order_id).first()
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid order type. Must be 'taxi' or 'delivery'",
+        )
+
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        )
+
+    if order.status != OrderStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending orders can be released from preview",
+        )
+
+    if order.driver_id != driver.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not holding this order",
+        )
+
+    # Return order to general pool
+    order.driver_id = None
+    order.is_confirmed = False
+    order.accepted_at = None
+
+    db.commit()
+    db.refresh(order)
+
+    if _should_block_driver(reason):
+        await _add_driver_cancelled_order(driver.id, order.id, order_type)
+
+    # Notify all drivers that this order is available again
+    await _broadcast_order_to_eligible_drivers(
+        {
+            "type": "order_returned",
+            "order_id": order.id,
+            "order_type": order_type,
+            "driver_id": driver.id,
+            "reason": "Preview released",
+            "order": _serialize_pending_order_for_driver(order, order_type),
+        },
+        order.id,
+        order_type,
+        exclude_driver_ids={driver.id},
+    )
+
+    return {
+        "success": True,
+        "message": "Order preview released",
+        "order": {
+            "id": order.id,
+            "type": order_type,
+            "status": order.status.value,
+        },
     }
 
 
@@ -1074,12 +1392,18 @@ async def confirm_order(
             db.refresh(order)
             
             # Notify all drivers that order is available again
-            await manager.broadcast_to_all_drivers({
-                "type": "order_returned",
-                "order_id": order.id,
-                "order_type": order_type,
-                "reason": "Confirmation time expired"
-            })
+            await _broadcast_order_to_eligible_drivers(
+                {
+                    "type": "order_returned",
+                    "order_id": order.id,
+                    "order_type": order_type,
+                    "reason": "Confirmation time expired",
+                    "driver_id": old_driver_id,
+                    "order": _serialize_pending_order_for_driver(order, order_type),
+                },
+                order.id,
+                order_type,
+            )
             
             # Notify the driver who lost the order
             create_notification(
@@ -1195,14 +1519,23 @@ async def reject_order(
     
     db.commit()
     db.refresh(order)
+
+    await _add_driver_cancelled_order(driver.id, order.id, order_type)
     
     # Notify all drivers that order is available again
-    await manager.broadcast_to_all_drivers({
-        "type": "order_returned",
-        "order_id": order.id,
-        "order_type": order_type,
-        "reason": "Driver rejected"
-    })
+    await _broadcast_order_to_eligible_drivers(
+        {
+            "type": "order_returned",
+            "order_id": order.id,
+            "order_type": order_type,
+            "driver_id": driver.id,
+            "reason": "Driver rejected",
+            "order": _serialize_pending_order_for_driver(order, order_type),
+        },
+        order.id,
+        order_type,
+        exclude_driver_ids={driver.id},
+    )
     
     # Notify user
     create_notification(
