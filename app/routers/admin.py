@@ -349,6 +349,45 @@ def get_all_pricing(
     return pricing
 
 
+@router.delete("/pricing/{pricing_id}")
+def delete_pricing_by_id(
+    pricing_id: int,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete a specific pricing by ID"""
+    pricing = db.query(Pricing).filter(Pricing.id == pricing_id).first()
+    
+    if not pricing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pricing not found"
+        )
+    
+    db.delete(pricing)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Pricing with ID {pricing_id} deleted successfully"
+    }
+
+
+@router.delete("/pricing")
+def delete_all_pricing(
+    current_user: User = Depends(get_current_superadmin),
+    db: Session = Depends(get_db)
+):
+    """Delete all pricing records (SUPERADMIN only)"""
+    deleted_count = db.query(Pricing).delete()
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"All pricing deleted successfully. Total deleted: {deleted_count}"
+    }
+
+
 @router.post("/broadcast")
 def broadcast_message(
     message_data: BroadcastMessage,

@@ -1,0 +1,167 @@
+{
+  "info": {
+    "name": "Pricing Delete Endpoints",
+    "_postman_id": "pricing-delete-collection",
+    "description": "Collection for testing pricing deletion endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get All Pricing",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/admin/pricing",
+          "host": ["{{base_url}}"],
+          "path": ["api", "admin", "pricing"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Pricing by ID",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/admin/pricing/:pricing_id",
+          "host": ["{{base_url}}"],
+          "path": ["api", "admin", "pricing", ":pricing_id"],
+          "variable": [
+            {
+              "key": "pricing_id",
+              "value": "1",
+              "description": "ID of the pricing to delete"
+            }
+          ]
+        },
+        "description": "Delete a specific pricing record by ID. Requires ADMIN or SUPERADMIN role."
+      },
+      "response": [
+        {
+          "name": "Success",
+          "originalRequest": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/pricing/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "pricing", "1"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [],
+          "cookie": [],
+          "body": "{\n  \"success\": true,\n  \"message\": \"Pricing with ID 1 deleted successfully\"\n}"
+        },
+        {
+          "name": "Not Found",
+          "originalRequest": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/pricing/99999",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "pricing", "99999"]
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "_postman_previewlanguage": "json",
+          "header": [],
+          "cookie": [],
+          "body": "{\n  \"detail\": \"Pricing not found\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Delete All Pricing (SUPERADMIN)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{superadmin_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/admin/pricing",
+          "host": ["{{base_url}}"],
+          "path": ["api", "admin", "pricing"]
+        },
+        "description": "Delete ALL pricing records from database. ⚠️ SUPERADMIN ONLY! This action is irreversible!"
+      },
+      "response": [
+        {
+          "name": "Success",
+          "originalRequest": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/pricing",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "pricing"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [],
+          "cookie": [],
+          "body": "{\n  \"success\": true,\n  \"message\": \"All pricing deleted successfully. Total deleted: 15\"\n}"
+        },
+        {
+          "name": "Forbidden (Not Superadmin)",
+          "originalRequest": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/pricing",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "pricing"]
+            }
+          },
+          "status": "Forbidden",
+          "code": 403,
+          "_postman_previewlanguage": "json",
+          "header": [],
+          "cookie": [],
+          "body": "{\n  \"detail\": \"Superadmin access required\"\n}"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "superadmin_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
