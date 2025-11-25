@@ -336,6 +336,8 @@ async def _collect_available_orders_for_driver(
     db: Session,
     from_region_id: Optional[int] = None,
     to_region_id: Optional[int] = None,
+    region_id: Optional[int] = None,
+    order_type: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
 ) -> dict:
@@ -345,43 +347,76 @@ async def _collect_available_orders_for_driver(
     - Excludes orders held/confirmed by other drivers.
     - Excludes orders the current driver cancelled/rejected.
     """
+    normalized_order_type: Optional[str] = None
+    if order_type:
+        candidate = order_type.strip().lower()
+        if candidate in {"taxi", "delivery"}:
+            normalized_order_type = candidate
+        elif candidate not in {"", "all"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="order_type must be either 'taxi' or 'delivery'",
+            )
+
+    include_taxi = normalized_order_type in (None, "taxi")
+    include_delivery = normalized_order_type in (None, "delivery")
+    effective_from_region_id = from_region_id or region_id
     limit, offset = _normalize_pagination(limit, offset)
     fetch_size = limit + offset + 1
-    blocked_taxi_ids = await _get_driver_cancelled_orders(driver.id, "taxi")
-    blocked_delivery_ids = await _get_driver_cancelled_orders(driver.id, "delivery")
+    taxi_orders: list[TaxiOrder] = []
+    delivery_orders: list[DeliveryOrder] = []
 
-    taxi_query = db.query(TaxiOrder).filter(
-        TaxiOrder.status == OrderStatus.PENDING,
-        or_(TaxiOrder.driver_id.is_(None), TaxiOrder.driver_id == driver.id),
-        or_(TaxiOrder.is_confirmed.is_(False), TaxiOrder.driver_id == driver.id),
-    )
-    delivery_query = db.query(DeliveryOrder).filter(
-        DeliveryOrder.status == OrderStatus.PENDING,
-        or_(DeliveryOrder.driver_id.is_(None), DeliveryOrder.driver_id == driver.id),
-        or_(DeliveryOrder.is_confirmed.is_(False), DeliveryOrder.driver_id == driver.id),
-    )
-
-    if from_region_id:
-        taxi_query = taxi_query.filter(TaxiOrder.from_region_id == from_region_id)
-        delivery_query = delivery_query.filter(
-            DeliveryOrder.from_region_id == from_region_id,
+    if include_taxi:
+        blocked_taxi_ids = await _get_driver_cancelled_orders(driver.id, "taxi")
+        taxi_query = db.query(TaxiOrder).filter(
+            TaxiOrder.status == OrderStatus.PENDING,
+            or_(TaxiOrder.driver_id.is_(None), TaxiOrder.driver_id == driver.id),
+            or_(TaxiOrder.is_confirmed.is_(False), TaxiOrder.driver_id == driver.id),
         )
 
-    if to_region_id:
-        taxi_query = taxi_query.filter(TaxiOrder.to_region_id == to_region_id)
-        delivery_query = delivery_query.filter(
-            DeliveryOrder.to_region_id == to_region_id,
+        if effective_from_region_id:
+            taxi_query = taxi_query.filter(
+                TaxiOrder.from_region_id == effective_from_region_id,
+            )
+
+        if to_region_id:
+            taxi_query = taxi_query.filter(TaxiOrder.to_region_id == to_region_id)
+
+        if blocked_taxi_ids:
+            taxi_query = taxi_query.filter(~TaxiOrder.id.in_(blocked_taxi_ids))
+
+        taxi_orders = (
+            taxi_query.order_by(TaxiOrder.created_at.desc()).limit(fetch_size).all()
         )
 
-    if blocked_taxi_ids:
-        taxi_query = taxi_query.filter(~TaxiOrder.id.in_(blocked_taxi_ids))
-    if blocked_delivery_ids:
-        delivery_query = delivery_query.filter(~DeliveryOrder.id.in_(blocked_delivery_ids))
+    if include_delivery:
+        blocked_delivery_ids = await _get_driver_cancelled_orders(driver.id, "delivery")
+        delivery_query = db.query(DeliveryOrder).filter(
+            DeliveryOrder.status == OrderStatus.PENDING,
+            or_(DeliveryOrder.driver_id.is_(None), DeliveryOrder.driver_id == driver.id),
+            or_(DeliveryOrder.is_confirmed.is_(False), DeliveryOrder.driver_id == driver.id),
+        )
 
-    taxi_orders = taxi_query.order_by(TaxiOrder.created_at.desc()).limit(fetch_size).all()
-    delivery_orders = (
-        delivery_query.order_by(DeliveryOrder.created_at.desc()).limit(fetch_size).all()
-    )
+        if effective_from_region_id:
+            delivery_query = delivery_query.filter(
+                DeliveryOrder.from_region_id == effective_from_region_id,
+            )
+
+        if to_region_id:
+            delivery_query = delivery_query.filter(
+                DeliveryOrder.to_region_id == to_region_id,
+            )
+
+        if blocked_delivery_ids:
+            delivery_query = delivery_query.filter(
+                ~DeliveryOrder.id.in_(blocked_delivery_ids),
+            )
+
+        delivery_orders = (
+            delivery_query.order_by(DeliveryOrder.created_at.desc())
+            .limit(fetch_size)
+            .all()
+        )
 
     combined: list[tuple[str, Union[TaxiOrder, DeliveryOrder], datetime]] = []
     combined.extend(
@@ -947,8 +982,10 @@ def get_my_orders(
 
 @router.get("/orders/active")
 async def get_active_orders(
-    from_region_id: int = None,
-    to_region_id: int = None,
+    from_region_id: Optional[int] = None,
+    to_region_id: Optional[int] = None,
+    region_id: Optional[int] = None,
+    order_type: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
     current_user: User = Depends(get_current_driver),
@@ -973,6 +1010,8 @@ async def get_active_orders(
         db,
         from_region_id=from_region_id,
         to_region_id=to_region_id,
+        region_id=region_id,
+        order_type=order_type,
         limit=limit,
         offset=offset,
     )
@@ -1045,8 +1084,10 @@ def get_order_history(
 
 @router.get("/orders/new")
 async def get_new_orders(
-    from_region_id: int = None,
-    to_region_id: int = None,
+    from_region_id: Optional[int] = None,
+    to_region_id: Optional[int] = None,
+    region_id: Optional[int] = None,
+    order_type: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
     current_user: User = Depends(get_current_driver),
@@ -1066,6 +1107,8 @@ async def get_new_orders(
         db,
         from_region_id=from_region_id,
         to_region_id=to_region_id,
+        region_id=region_id,
+        order_type=order_type,
         limit=limit,
         offset=offset,
     )
