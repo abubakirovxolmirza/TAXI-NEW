@@ -6,7 +6,13 @@ from app.database import get_db
 from app.models import User, DeliveryOrder, OrderStatus, Driver, UserRole
 from app.schemas import DeliveryOrderCreate, DeliveryOrderResponse, OrderCancellation, BulkDeleteRequest
 from app.auth import get_current_user, get_optional_user
-from app.utils import calculate_delivery_price, create_notification, calculate_service_fee, get_or_create_guest_user
+from app.utils import (
+    apply_service_fee_refund,
+    calculate_delivery_price,
+    create_notification,
+    calculate_service_fee,
+    get_or_create_guest_user,
+)
 from app.websocket import manager
 
 DEFAULT_PAGE_SIZE = 10
@@ -355,6 +361,7 @@ async def cancel_delivery_order(
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation.cancellation_reason
     order.cancelled_at = datetime.now(timezone.utc)
+    refund_result = apply_service_fee_refund(db, order, "delivery")
     
     db.commit()
     db.refresh(order)
@@ -363,6 +370,7 @@ async def cancel_delivery_order(
     if order.driver_id:
         driver = db.query(Driver).filter(Driver.id == order.driver_id).first()
         if driver:
+            db.refresh(driver)
             create_notification(
                 db=db,
                 title="Order Cancelled",
@@ -370,6 +378,17 @@ async def cancel_delivery_order(
                 notification_type="order_cancelled",
                 driver_id=driver.id
             )
+            if refund_result and refund_result[1] == driver.id:
+                refund_amount = refund_result[0]
+                create_notification(
+                    db=db,
+                    title="Service Fee Refunded",
+                    message=(
+                        f"Service fee of {refund_amount} has been returned for delivery order #{order.id}."
+                    ),
+                    notification_type="service_fee_refunded",
+                    driver_id=driver.id,
+                )
     
     # Notify user
     create_notification(

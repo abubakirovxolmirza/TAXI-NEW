@@ -3,17 +3,20 @@ import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from app.models import Pricing, Driver, User, Notification, SystemSettings, UserRole, Language
-from typing import Optional, Tuple
+from app.models import Pricing, Driver, User, Notification, SystemSettings, UserRole, Language, BalanceTransaction
+from typing import Optional, Tuple, Union, TYPE_CHECKING
 
 import redis
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Pricing, Driver, User, Notification, SystemSettings
+from app.models import Pricing, Driver, User, Notification, SystemSettings, BalanceTransaction
 from app.websocket import manager
 from app.auth import get_password_hash
 import uuid
+
+if TYPE_CHECKING:
+    from app.models import TaxiOrder, DeliveryOrder
 
 # Default platform service fee percentage (fallback if not set in DB)
 DEFAULT_SERVICE_FEE_PERCENTAGE = Decimal("10.00")  # 10%
@@ -211,6 +214,112 @@ def check_driver_can_accept_order(db: Session, driver_id: int) -> bool:
     # Minimum balance requirement removed - drivers can accept orders
     
     return True
+
+
+def _normalize_order_type(order_type: str) -> str:
+    normalized = (order_type or "order").strip().lower()
+    if normalized not in {"taxi", "delivery"}:
+        return "order"
+    return normalized
+
+
+def _service_fee_description(order_type: str, order_id: int) -> str:
+    order_label = _normalize_order_type(order_type)
+    return f"Service fee for {order_label} order #{order_id}"
+
+
+def _service_fee_refund_description(order_type: str, order_id: int) -> str:
+    order_label = _normalize_order_type(order_type)
+    return f"Service fee refund for {order_label} order #{order_id}"
+
+
+def apply_service_fee_charge(
+    db: Session,
+    order: Union["TaxiOrder", "DeliveryOrder"],
+    order_type: str,
+) -> Optional[Tuple[Decimal, int]]:
+    """Deduct the platform service fee from the driver's balance."""
+    driver_id = getattr(order, "driver_id", None)
+    if not driver_id:
+        return None
+
+    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+    if not driver:
+        return None
+
+    fee_amount = getattr(order, "service_fee", None)
+    if fee_amount is None or fee_amount <= Decimal("0"):
+        return None
+
+    description = _service_fee_description(order_type, order.id)
+    existing_charge = db.query(BalanceTransaction).filter(
+        BalanceTransaction.driver_id == driver.id,
+        BalanceTransaction.transaction_type == "debit",
+        BalanceTransaction.description == description,
+    ).first()
+    if existing_charge:
+        return None
+
+    driver.balance = (driver.balance or Decimal("0")) - fee_amount
+    transaction = BalanceTransaction(
+        driver_id=driver.id,
+        amount=fee_amount,
+        transaction_type="debit",
+        description=description,
+    )
+    db.add(transaction)
+    db.flush()
+
+    return fee_amount, driver.id
+
+
+def apply_service_fee_refund(
+    db: Session,
+    order: Union["TaxiOrder", "DeliveryOrder"],
+    order_type: str,
+) -> Optional[Tuple[Decimal, int]]:
+    """Refund a previously charged service fee back to the driver."""
+    driver_id = getattr(order, "driver_id", None)
+    if not driver_id:
+        return None
+
+    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+    if not driver:
+        return None
+
+    fee_amount = getattr(order, "service_fee", None)
+    if fee_amount is None or fee_amount <= Decimal("0"):
+        return None
+
+    description = _service_fee_description(order_type, order.id)
+    charge_exists = db.query(BalanceTransaction).filter(
+        BalanceTransaction.driver_id == driver.id,
+        BalanceTransaction.transaction_type == "debit",
+        BalanceTransaction.description == description,
+    ).first()
+    if not charge_exists:
+        return None
+
+    refund_description = _service_fee_refund_description(order_type, order.id)
+    existing_refund = db.query(BalanceTransaction).filter(
+        BalanceTransaction.driver_id == driver.id,
+        BalanceTransaction.transaction_type == "refund",
+        BalanceTransaction.description == refund_description,
+    ).first()
+    if existing_refund:
+        return None
+
+    driver.balance = (driver.balance or Decimal("0")) + fee_amount
+    transaction = BalanceTransaction(
+        driver_id=driver.id,
+        amount=fee_amount,
+        transaction_type="refund",
+        description=refund_description,
+    )
+    db.add(transaction)
+    db.flush()
+
+    return fee_amount, driver.id
 
 
 def _serialize_notification(notification: Notification) -> dict:

@@ -8,6 +8,7 @@ from app.models import User, TaxiOrder, OrderStatus, Driver, UserRole
 from app.schemas import TaxiOrderCreate, TaxiOrderResponse, OrderCancellation, BulkDeleteRequest
 from app.auth import get_current_user, get_optional_user
 from app.utils import (
+    apply_service_fee_refund,
     calculate_service_fee,
     calculate_taxi_price,
     create_notification,
@@ -359,6 +360,7 @@ async def cancel_taxi_order(
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation.cancellation_reason
     order.cancelled_at = datetime.now(timezone.utc)
+    refund_result = apply_service_fee_refund(db, order, "taxi")
     
     db.commit()
     db.refresh(order)
@@ -367,6 +369,7 @@ async def cancel_taxi_order(
     if order.driver_id:
         driver = db.query(Driver).filter(Driver.id == order.driver_id).first()
         if driver:
+            db.refresh(driver)
             create_notification(
                 db=db,
                 title="Order Cancelled",
@@ -374,9 +377,17 @@ async def cancel_taxi_order(
                 notification_type="order_cancelled",
                 driver_id=driver.id
             )
-            
-            # Process refund (add balance back to driver if needed)
-            # This would be implemented based on your business logic
+            if refund_result and refund_result[1] == driver.id:
+                refund_amount = refund_result[0]
+                create_notification(
+                    db=db,
+                    title="Service Fee Refunded",
+                    message=(
+                        f"Service fee of {refund_amount} has been returned for taxi order #{order.id}."
+                    ),
+                    notification_type="service_fee_refunded",
+                    driver_id=driver.id,
+                )
     
     # Notify user
     create_notification(

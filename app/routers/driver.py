@@ -30,7 +30,11 @@ from app.schemas import (
     DriverStatistics,
     DriverUpdate,
 )
-from app.utils import check_driver_can_accept_order, create_notification
+from app.utils import (
+    apply_service_fee_charge,
+    check_driver_can_accept_order,
+    create_notification,
+)
 from app.websocket import manager
 
 router = APIRouter(prefix="/api/driver", tags=["Driver"])
@@ -1437,9 +1441,23 @@ async def complete_order(
     # Complete order
     order.status = OrderStatus.COMPLETED
     order.completed_at = datetime.now(timezone.utc)
-    
+    charge_result = apply_service_fee_charge(db, order, order_type)
+
     db.commit()
     db.refresh(order)
+    db.refresh(driver)
+
+    if charge_result:
+        fee_amount, charged_driver_id = charge_result
+        create_notification(
+            db=db,
+            title="Service Fee Deducted",
+            message=(
+                f"Service fee of {fee_amount} has been deducted for {order_type} order #{order.id}."
+            ),
+            notification_type="service_fee_charged",
+            driver_id=charged_driver_id,
+        )
     
     # Notify user
     create_notification(
