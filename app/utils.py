@@ -1,25 +1,38 @@
 import asyncio
 import json
 from datetime import datetime, timezone
-from decimal import Decimal
-from sqlalchemy.orm import Session
-from app.models import Pricing, Driver, User, Notification, SystemSettings, UserRole, Language, BalanceTransaction
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Tuple, Union, TYPE_CHECKING
+import uuid
 
 import redis
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.models import Pricing, Driver, User, Notification, SystemSettings, BalanceTransaction
-from app.websocket import manager
 from app.auth import get_password_hash
-import uuid
+from app.config import settings
+from app.models import (
+    BalanceTransaction,
+    Driver,
+    Language,
+    Notification,
+    Pricing,
+    SystemSettings,
+    User,
+    UserRole,
+)
+from app.websocket import manager
 
 if TYPE_CHECKING:
     from app.models import TaxiOrder, DeliveryOrder
 
 # Default platform service fee percentage (fallback if not set in DB)
 DEFAULT_SERVICE_FEE_PERCENTAGE = Decimal("10.00")  # 10%
+MONEY_QUANTIZE = Decimal("0.01")
+
+
+def _quantize_money(value: Decimal) -> Decimal:
+    """Round monetary values to 2 decimal places using bankers-friendly rounding."""
+    return value.quantize(MONEY_QUANTIZE, rounding=ROUND_HALF_UP)
 
 
 def get_or_create_guest_user(db: Session, telephone: str, username: str) -> User:
@@ -72,9 +85,10 @@ def calculate_service_fee(price: Decimal, db: Session) -> Tuple[Decimal, Decimal
     Calculate service fee and driver earnings
     Returns: (service_fee, driver_earnings)
     """
+    price = _quantize_money(price)
     service_fee_percentage = get_service_fee_percentage(db)
-    service_fee = (price * service_fee_percentage) / Decimal("100.00")
-    driver_earnings = price - service_fee
+    service_fee = _quantize_money((price * service_fee_percentage) / Decimal("100.00"))
+    driver_earnings = _quantize_money(price - service_fee)
     return (service_fee, driver_earnings)
 
 
@@ -92,27 +106,31 @@ def calculate_taxi_price(
         Pricing.is_active == True
     ).first()
     
+    total_passengers = passengers if passengers and passengers > 0 else 1
+
     if not pricing:
-        # Default pricing if not set
-        return Decimal("50000.00")
-    
-    base_price = pricing.base_price
-    
+        # Default pricing if not set (per passenger)
+        return _quantize_money(Decimal("50000.00") * Decimal(total_passengers))
+
+    base_price = pricing.base_price or Decimal("0.00")
+
     # Apply discount based on passengers
     discount = Decimal("0.00")
-    if passengers == 1:
-        discount = pricing.discount_1_passenger
-    elif passengers == 2:
-        discount = pricing.discount_2_passengers
-    elif passengers == 3:
-        discount = pricing.discount_3_passengers
-    elif passengers == 4:
-        discount = pricing.discount_full_car
-    
-    discount_amount = base_price * (discount / Decimal("100.00"))
-    final_price = base_price - discount_amount
-    
-    return final_price
+    if total_passengers == 1:
+        discount = pricing.discount_1_passenger or Decimal("0.00")
+    elif total_passengers == 2:
+        discount = pricing.discount_2_passengers or Decimal("0.00")
+    elif total_passengers == 3:
+        discount = pricing.discount_3_passengers or Decimal("0.00")
+    elif total_passengers >= 4:
+        discount = pricing.discount_full_car or Decimal("0.00")
+
+    effective_multiplier = (Decimal("100.00") - discount) / Decimal("100.00")
+    total_price = base_price * effective_multiplier * Decimal(total_passengers)
+    if total_price < Decimal("0.00"):
+        total_price = Decimal("0.00")
+
+    return _quantize_money(total_price)
 
 
 def calculate_delivery_price(
@@ -130,9 +148,9 @@ def calculate_delivery_price(
     
     if not pricing:
         # Default pricing if not set
-        return Decimal("30000.00")
-    
-    return pricing.base_price
+        return _quantize_money(Decimal("30000.00"))
+
+    return _quantize_money(pricing.base_price or Decimal("0.00"))
 
 
 def update_driver_rating(db: Session, driver_id: int):
