@@ -604,6 +604,8 @@ async def apply_as_driver(
         car_model=application_data.car_model,
         car_number=application_data.car_number,
         license_photo=application_data.license_photo,
+        car_photo=application_data.car_photo,
+        tex_pas=application_data.tex_pas,
         status=ApplicationStatus.PENDING
     )
     
@@ -740,6 +742,12 @@ def update_driver_profile(
     
     if driver_update.car_number is not None:
         driver.car_number = driver_update.car_number
+    
+    if driver_update.car_photo is not None:
+        driver.car_photo = driver_update.car_photo
+    
+    if driver_update.tex_pas is not None:
+        driver.tex_pas = driver_update.tex_pas
     
     db.commit()
     db.refresh(driver)

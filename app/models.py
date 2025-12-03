@@ -237,6 +237,8 @@ class DriverApplication(Base):
     car_model = Column(String(100), nullable=False)
     car_number = Column(String(20), nullable=False)
     license_photo = Column(String(255), nullable=False)
+    car_photo = Column(String(255), nullable=True)
+    tex_pas = Column(String(255), nullable=True)
     status = Column(SQLEnum(ApplicationStatus, values_callable=lambda obj: [e.value for e in obj]), default=ApplicationStatus.PENDING, nullable=False)
     rejection_reason = Column(Text, nullable=True)
     reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)

@@ -248,6 +248,8 @@ class DriverApplicationCreate(BaseModel):
     car_model: str
     car_number: str
     license_photo: str  # file path after upload
+    car_photo: Optional[str] = None  # file path after upload
+    tex_pas: Optional[str] = None  # file path after upload
 
 
 class DriverApplicationResponse(BaseModel):
@@ -258,6 +260,8 @@ class DriverApplicationResponse(BaseModel):
     car_model: str
     car_number: str
     license_photo: str
+    car_photo: Optional[str]
+    tex_pas: Optional[str]
     status: ApplicationStatus
     rejection_reason: Optional[str]
     created_at: datetime
@@ -276,6 +280,8 @@ class DriverUpdate(BaseModel):
     full_name: Optional[str] = None
     car_model: Optional[str] = None
     car_number: Optional[str] = None
+    car_photo: Optional[str] = None
+    tex_pas: Optional[str] = None
 
 
 class DriverResponse(BaseModel):
@@ -284,6 +290,9 @@ class DriverResponse(BaseModel):
     full_name: str
     car_model: str
     car_number: str
+    license_photo: str
+    car_photo: Optional[str]
+    tex_pas: Optional[str]
     rating: Decimal
     balance: Decimal
     is_blocked: bool

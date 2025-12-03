@@ -80,6 +80,8 @@ def review_application(
             existing_driver.car_model = application.car_model
             existing_driver.car_number = application.car_number
             existing_driver.license_photo = application.license_photo
+            existing_driver.car_photo = application.car_photo
+            existing_driver.tex_pas = application.tex_pas
             existing_driver.is_blocked = False
             driver_record = existing_driver
         else:
@@ -88,7 +90,9 @@ def review_application(
                 full_name=application.full_name,
                 car_model=application.car_model,
                 car_number=application.car_number,
-                license_photo=application.license_photo
+                license_photo=application.license_photo,
+                car_photo=application.car_photo,
+                tex_pas=application.tex_pas
             )
             db.add(driver_record)
             db.flush()
