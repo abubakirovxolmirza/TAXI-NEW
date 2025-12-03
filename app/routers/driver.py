@@ -587,6 +587,8 @@ async def apply_as_driver(
         existing_application.car_model = application_data.car_model
         existing_application.car_number = application_data.car_number
         existing_application.license_photo = application_data.license_photo
+        existing_application.car_photo = application_data.car_photo
+        existing_application.tex_pas = application_data.tex_pas
         existing_application.telephone = current_user.telephone
         existing_application.status = ApplicationStatus.PENDING
         existing_application.rejection_reason = None
