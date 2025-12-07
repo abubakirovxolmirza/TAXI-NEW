@@ -19,6 +19,12 @@ class Language(str, enum.Enum):
     RUSSIAN = "russian"
 
 
+class Gender(str, enum.Enum):
+    MALE = "male"
+    FEMALE = "female"
+    OTHER = "other"
+
+
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
@@ -40,6 +46,11 @@ class ItemType(str, enum.Enum):
     OTHER = "other"
 
 
+class SeatType(str, enum.Enum):
+    FRONT = "front"
+    BACK = "back"
+
+
 class User(Base):
     __tablename__ = "users"
     
@@ -49,6 +60,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(SQLEnum(UserRole, values_callable=lambda obj: [e.value for e in obj]), default=UserRole.USER, nullable=False)
     language = Column(SQLEnum(Language, values_callable=lambda obj: [e.value for e in obj]), default=Language.UZ_LATIN, nullable=False)
+    gender = Column(SQLEnum(Gender, values_callable=lambda obj: [e.value for e in obj]), nullable=True)
     profile_picture = Column(String(255), nullable=True)
     telegram_chat_id = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -131,6 +143,7 @@ class TaxiOrder(Base):
     pickup_longitude = Column(String(50), nullable=True)  # Client's pickup longitude
     pickup_address = Column(Text, nullable=True)  # Optional address description
     passengers = Column(Integer, nullable=False)  # 1, 2, 3, 4
+    seat_type = Column(SQLEnum(SeatType, values_callable=lambda obj: [e.value for e in obj]), nullable=True)  # front or back
     is_mail_delivery = Column(Boolean, default=False, nullable=False)  # True if sending package/item instead of passenger
     date = Column(String(10), nullable=False)  # dd.mm.yyyy
     time_start = Column(String(5), nullable=False)  # HH:MM
@@ -259,6 +272,8 @@ class Pricing(Base):
     to_region_id = Column(Integer, ForeignKey("regions.id"), nullable=False)
     service_type = Column(String(20), nullable=False)  # "taxi" or "delivery"
     base_price = Column(Numeric(10, 2), nullable=False)
+    front_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for front seat
+    back_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for back seat
     discount_1_passenger = Column(Numeric(5, 2), default=0.00)  # percentage
     discount_2_passengers = Column(Numeric(5, 2), default=0.00)
     discount_3_passengers = Column(Numeric(5, 2), default=0.00)

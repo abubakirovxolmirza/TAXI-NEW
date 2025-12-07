@@ -4,7 +4,7 @@ from sqlalchemy import and_, or_, func
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from app.database import get_db
-from app.models import User, TaxiOrder, OrderStatus, Driver, UserRole
+from app.models import User, TaxiOrder, OrderStatus, Driver, UserRole, SeatType
 from app.schemas import TaxiOrderCreate, TaxiOrderResponse, OrderCancellation, BulkDeleteRequest
 from app.auth import get_current_user, get_optional_user
 from app.utils import (
@@ -42,12 +42,23 @@ async def create_taxi_order(
             telephone=order_data.telephone,
             username=order_data.username
         )
-    # Calculate price
+    
+    # Determine seat type: automatic selection if not provided by client
+    seat_type = order_data.seat_type
+    if seat_type is None:
+        # Auto-select based on number of passengers
+        if order_data.passengers == 1:
+            seat_type = SeatType.FRONT
+        else:  # 2 or more passengers
+            seat_type = SeatType.BACK
+    
+    # Calculate price (with seat-specific pricing if available)
     price = calculate_taxi_price(
         db=db,
         from_region_id=order_data.from_region_id,
         to_region_id=order_data.to_region_id,
-        passengers=order_data.passengers
+        passengers=order_data.passengers,
+        seat_type=seat_type
     )
     
     # Calculate service fee and driver earnings
@@ -66,6 +77,7 @@ async def create_taxi_order(
         pickup_longitude=order_data.pickup_longitude,
         pickup_address=order_data.pickup_address,
         passengers=order_data.passengers,
+        seat_type=seat_type,
         is_mail_delivery=order_data.is_mail_delivery,
         date=order_data.date,
         time_start=order_data.time_start,
@@ -99,6 +111,7 @@ async def create_taxi_order(
         "from_region_id": new_order.from_region_id,
         "to_region_id": new_order.to_region_id,
         "passengers": new_order.passengers,
+        "seat_type": new_order.seat_type.value if new_order.seat_type else None,
         "price": float(new_order.price),
         "service_fee": float(new_order.service_fee),
         "driver_earnings": float(new_order.driver_earnings),

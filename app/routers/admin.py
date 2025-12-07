@@ -245,6 +245,51 @@ def unblock_driver(
     return {"success": True, "message": "Driver unblocked successfully"}
 
 
+@router.delete("/drivers/{driver_id}")
+def delete_driver(
+    driver_id: int,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete a driver (but keep the associated user account)"""
+    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+    
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver not found"
+        )
+    
+    # Get associated user info before deletion
+    user_id = driver.user_id
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    # Delete the driver profile
+    db.delete(driver)
+    db.commit()
+    
+    # Update user role back to regular user
+    if user:
+        user.role = UserRole.USER
+        db.commit()
+        
+        # Notify user that driver profile was deleted
+        create_notification(
+            db=db,
+            title="Driver Profile Deleted",
+            message="Your driver profile has been deleted by admin. Your user account is still active.",
+            notification_type="driver_deleted",
+            user_id=user_id
+        )
+    
+    return {
+        "success": True,
+        "message": "Driver profile deleted successfully. Associated user account remains active.",
+        "driver_id": driver_id,
+        "user_id": user_id
+    }
+
+
 @router.post("/drivers/balance/add", response_model=BalanceTransactionResponse)
 def add_driver_balance(
     balance_data: BalanceAdd,

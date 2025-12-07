@@ -96,9 +96,12 @@ def calculate_taxi_price(
     db: Session,
     from_region_id: int,
     to_region_id: int,
-    passengers: int
+    passengers: int,
+    seat_type: Optional[str] = None
 ) -> Decimal:
-    """Calculate taxi price with discounts based on number of passengers"""
+    """Calculate taxi price with seat-specific pricing and discounts based on number of passengers"""
+    from app.models import SeatType
+    
     pricing = db.query(Pricing).filter(
         Pricing.from_region_id == from_region_id,
         Pricing.to_region_id == to_region_id,
@@ -112,7 +115,21 @@ def calculate_taxi_price(
         # Default pricing if not set (per passenger)
         return _quantize_money(Decimal("50000.00") * Decimal(total_passengers))
 
+    # Determine seat type if not provided
+    if seat_type is None:
+        seat_type = SeatType.FRONT if total_passengers == 1 else SeatType.BACK
+    
+    # Convert string to SeatType if needed
+    if isinstance(seat_type, str):
+        seat_type = SeatType(seat_type)
+
+    # Check for seat-specific pricing
     base_price = pricing.base_price or Decimal("0.00")
+    
+    if seat_type == SeatType.FRONT and pricing.front_seat_price:
+        base_price = pricing.front_seat_price
+    elif seat_type == SeatType.BACK and pricing.back_seat_price:
+        base_price = pricing.back_seat_price
 
     # Apply discount based on passengers
     discount = Decimal("0.00")

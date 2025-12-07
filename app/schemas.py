@@ -2,7 +2,7 @@ from pydantic import BaseModel, validator, Field
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
-from app.models import UserRole, Language, OrderStatus, ApplicationStatus, ItemType
+from app.models import UserRole, Language, Gender, OrderStatus, ApplicationStatus, ItemType, SeatType
 
 
 # User Schemas
@@ -14,6 +14,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     confirm_password: str
+    gender: Optional[Gender] = None
     
     @validator('confirm_password')
     def passwords_match(cls, v, values):
@@ -30,6 +31,7 @@ class UserLogin(BaseModel):
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     language: Optional[Language] = None
+    gender: Optional[Gender] = None
     profile_picture: Optional[str] = None
 
 
@@ -67,6 +69,7 @@ class UserResponse(UserBase):
     id: int
     role: UserRole
     language: Language
+    gender: Optional[Gender]
     profile_picture: Optional[str]
     is_active: bool
     created_at: datetime
@@ -132,6 +135,7 @@ class TaxiOrderCreate(BaseModel):
     pickup_longitude: Optional[str] = None  # Client's pickup longitude
     pickup_address: Optional[str] = None  # Optional address description
     passengers: int = Field(..., ge=1, le=4)
+    seat_type: Optional[SeatType] = None  # front or back (auto-selected if not provided)
     is_mail_delivery: bool = False  # True if sending package/item instead of passenger
     date: str  # dd.mm.yyyy
     time_start: str  # HH:MM
@@ -160,6 +164,7 @@ class TaxiOrderResponse(BaseModel):
     pickup_longitude: Optional[str]
     pickup_address: Optional[str]
     passengers: int
+    seat_type: Optional[SeatType]
     is_mail_delivery: bool
     date: str
     time_start: str
@@ -340,6 +345,8 @@ class PricingCreate(BaseModel):
     to_region_id: int
     service_type: str  # "taxi" or "delivery"
     base_price: Decimal
+    front_seat_price: Optional[Decimal] = None
+    back_seat_price: Optional[Decimal] = None
     discount_1_passenger: Decimal = Decimal("0.00")
     discount_2_passengers: Decimal = Decimal("0.00")
     discount_3_passengers: Decimal = Decimal("0.00")
@@ -348,6 +355,8 @@ class PricingCreate(BaseModel):
 
 class PricingUpdate(BaseModel):
     base_price: Optional[Decimal] = None
+    front_seat_price: Optional[Decimal] = None
+    back_seat_price: Optional[Decimal] = None
     discount_1_passenger: Optional[Decimal] = None
     discount_2_passengers: Optional[Decimal] = None
     discount_3_passengers: Optional[Decimal] = None
@@ -360,6 +369,8 @@ class PricingResponse(BaseModel):
     to_region_id: int
     service_type: str
     base_price: Decimal
+    front_seat_price: Optional[Decimal]
+    back_seat_price: Optional[Decimal]
     discount_1_passenger: Decimal
     discount_2_passengers: Decimal
     discount_3_passengers: Decimal
