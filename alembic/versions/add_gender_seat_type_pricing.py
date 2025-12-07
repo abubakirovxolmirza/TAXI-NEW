@@ -17,11 +17,19 @@ depends_on = None
 
 
 def upgrade():
+    # Create gender enum type
+    gender_enum = sa.Enum('male', 'female', 'other', name='gender', create_type=True)
+    gender_enum.create(op.get_bind())
+    
+    # Create seattype enum type
+    seattype_enum = sa.Enum('front', 'back', name='seattype', create_type=True)
+    seattype_enum.create(op.get_bind())
+    
     # Add gender column to users table
-    op.add_column('users', sa.Column('gender', sa.Enum('male', 'female', 'other', name='gender'), nullable=True))
+    op.add_column('users', sa.Column('gender', gender_enum, nullable=True))
     
     # Add seat_type column to taxi_orders table
-    op.add_column('taxi_orders', sa.Column('seat_type', sa.Enum('front', 'back', name='seattype'), nullable=True))
+    op.add_column('taxi_orders', sa.Column('seat_type', seattype_enum, nullable=True))
     
     # Add front_seat_price and back_seat_price columns to pricing table
     op.add_column('pricing', sa.Column('front_seat_price', sa.Numeric(10, 2), nullable=True))
@@ -38,3 +46,7 @@ def downgrade():
     
     # Remove gender column from users table
     op.drop_column('users', 'gender')
+    
+    # Drop enum types
+    sa.Enum('front', 'back', name='seattype').drop(op.get_bind())
+    sa.Enum('male', 'female', 'other', name='gender').drop(op.get_bind())
