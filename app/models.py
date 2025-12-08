@@ -143,6 +143,7 @@ class TaxiOrder(Base):
     pickup_longitude = Column(String(50), nullable=True)  # Client's pickup longitude
     pickup_address = Column(Text, nullable=True)  # Optional address description
     passengers = Column(Integer, nullable=False)  # 1, 2, 3, 4
+    client_gender = Column(SQLEnum(Gender, values_callable=lambda obj: [e.value for e in obj]), nullable=True)  # Client's gender for this order
     seat_type = Column(SQLEnum(SeatType, values_callable=lambda obj: [e.value for e in obj]), nullable=True)  # front or back
     is_mail_delivery = Column(Boolean, default=False, nullable=False)  # True if sending package/item instead of passenger
     date = Column(String(10), nullable=False)  # dd.mm.yyyy

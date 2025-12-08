@@ -30,6 +30,7 @@ class UserLogin(BaseModel):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
+    telephone: Optional[str] = None
     language: Optional[Language] = None
     gender: Optional[Gender] = None
     profile_picture: Optional[str] = None
@@ -135,6 +136,7 @@ class TaxiOrderCreate(BaseModel):
     pickup_longitude: Optional[str] = None  # Client's pickup longitude
     pickup_address: Optional[str] = None  # Optional address description
     passengers: int = Field(..., ge=1, le=4)
+    client_gender: Optional[Gender] = None  # Client's gender for this order (not required)
     seat_type: Optional[SeatType] = None  # front or back (auto-selected if not provided)
     is_mail_delivery: bool = False  # True if sending package/item instead of passenger
     date: str  # dd.mm.yyyy
@@ -164,6 +166,7 @@ class TaxiOrderResponse(BaseModel):
     pickup_longitude: Optional[str]
     pickup_address: Optional[str]
     passengers: int
+    client_gender: Optional[Gender]
     seat_type: Optional[SeatType]
     is_mail_delivery: bool
     date: str

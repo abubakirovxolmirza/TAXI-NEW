@@ -84,12 +84,30 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update user profile"""
+    """Update user profile (name, telephone, language, gender, profile picture)"""
     if user_update.name is not None:
         current_user.name = user_update.name
     
+    if user_update.telephone is not None:
+        # Check if new telephone number is already taken by another user
+        existing_user = db.query(User).filter(
+            User.telephone == user_update.telephone,
+            User.id != current_user.id
+        ).first()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This telephone number is already registered"
+            )
+        
+        current_user.telephone = user_update.telephone
+    
     if user_update.language is not None:
         current_user.language = user_update.language
+    
+    if user_update.gender is not None:
+        current_user.gender = user_update.gender
     
     if user_update.profile_picture is not None:
         current_user.profile_picture = user_update.profile_picture

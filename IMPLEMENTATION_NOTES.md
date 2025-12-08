@@ -4,20 +4,56 @@
 
 ### Изменения в моделях:
 - **app/models.py**: Добавлен `Gender` enum с вариантами: `male`, `female`, `other`
-- **app/models.py**: Добавлено поле `gender` к модели `User` (nullable)
+- **app/models.py**: Добавлено поле `gender` к модели `User` (nullable) - для профиля пользователя
 
 ### Изменения в schemas:
 - **app/schemas.py**: Обновлен импорт для добавления `Gender`
 - **app/schemas.py**: Добавлено `gender` поле в `UserCreate`
 - **app/schemas.py**: Добавлено `gender` поле в `UserUpdate`
-- **app/schemas.py**: Добавлено `gender` поле в `UserResponse` - теперь все User данные отображают gender
+- **app/schemas.py**: Добавлено `gender` поле в `UserResponse` - теперь все User данные отображают gender профиля
 
 ### Миграция:
 - **alembic/versions/add_gender_seat_type_pricing.py**: Добавлена колонка `gender` в таблицу `users`
 
 ---
 
-## 2. Добавлен новый endpoint для удаления Driver
+## 1.1 Добавлена возможность обновления телефона пользователя
+
+### Изменения в schemas:
+- **app/schemas.py**: Добавлено опциональное поле `telephone` в `UserUpdate`
+
+### Изменения в routers:
+- **app/routers/auth.py**: Обновлен endpoint `PUT /api/auth/profile`
+  - Теперь позволяет обновлять телефон пользователя
+  - Проверяет, что новый телефон не зарегистрирован другим пользователем
+  - При попытке использовать зарегистрированный номер возвращает ошибку 400
+
+---
+
+## 2. Добавлено поле client_gender для заказов такси
+
+### Изменения в моделях:
+- **app/models.py**: Добавлено поле `client_gender` к модели `TaxiOrder` (nullable)
+  - Это отдельное поле, которое заполняется при каждом заказе
+  - **Не обязательно** для заполнения
+  - Отличается от поля `gender` в профиле пользователя
+
+### Изменения в schemas:
+- **app/schemas.py**: Добавлено `client_gender` поле в `TaxiOrderCreate` (optional)
+- **app/schemas.py**: Добавлено `client_gender` поле в `TaxiOrderResponse`
+
+### Логика в endpoint:
+- **app/routers/taxi_orders.py**: Обновлен `create_taxi_order()` endpoint
+  - Принимает `client_gender` как опциональное поле
+  - Сохраняет указанный пол клиента в заказе
+  - Отправляет `client_gender` в WebSocket broadcast для драйверов
+
+### Миграция:
+- **alembic/versions/add_gender_seat_type_pricing.py**: Добавлена колонка `client_gender` в таблицу `taxi_orders`
+
+---
+
+## 3. Добавлен новый endpoint для удаления Driver
 
 ### Изменения в routers:
 - **app/routers/admin.py**: Добавлен новый DELETE endpoint `/api/admin/drivers/{driver_id}`
@@ -29,7 +65,7 @@
 
 ---
 
-## 3. Добавлена функциональность выбора места в такси
+## 4. Добавлена функциональность выбора места в такси
 
 ### Новые enum и поля:
 - **app/models.py**: Добавлен `SeatType` enum с вариантами: `front`, `back`
@@ -69,7 +105,7 @@
 
 ## Как использовать новые функции
 
-### Gender:
+### User Gender (профиль):
 ```json
 POST /api/auth/register
 {
@@ -81,12 +117,23 @@ POST /api/auth/register
 }
 ```
 
+### Обновление User профиля (имя, телефон, язык, пол):
+```json
+PUT /api/auth/profile
+{
+  "name": "John Doe",
+  "telephone": "99899987654",    // Новый номер телефона (проверяется на уникальность)
+  "language": "russian",
+  "gender": "male"
+}
+```
+
 ### Удаление Driver:
 ```bash
 DELETE /api/admin/drivers/{driver_id}
 ```
 
-### Taxi Order с выбором места:
+### Taxi Order с gender клиента и выбором места:
 ```json
 POST /api/taxi-orders/
 {
@@ -97,7 +144,8 @@ POST /api/taxi-orders/
   "to_region_id": 2,
   "to_district_id": 2,
   "passengers": 1,
-  "seat_type": "front",  // Optional - если не указать, выберется автоматически
+  "client_gender": "male",        // Optional - пол клиента для этого заказа
+  "seat_type": "front",           // Optional - если не указать, выберется автоматически
   "date": "07.12.2025",
   "time_start": "14:30",
   "time_end": "15:30"
