@@ -60,7 +60,6 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(SQLEnum(UserRole, values_callable=lambda obj: [e.value for e in obj]), default=UserRole.USER, nullable=False)
     language = Column(SQLEnum(Language, values_callable=lambda obj: [e.value for e in obj]), default=Language.UZ_LATIN, nullable=False)
-    gender = Column(SQLEnum(Gender, values_callable=lambda obj: [e.value for e in obj]), nullable=True)
     profile_picture = Column(String(255), nullable=True)
     telegram_chat_id = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)

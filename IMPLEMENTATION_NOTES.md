@@ -1,19 +1,29 @@
 # Реализованные изменения в TAXI-NEW
 
-## 1. Добавлено поле Gender для пользователей
+## 1. Добавлено поле client_gender для заказов такси
 
 ### Изменения в моделях:
-- **app/models.py**: Добавлен `Gender` enum с вариантами: `male`, `female`, `other`
-- **app/models.py**: Добавлено поле `gender` к модели `User` (nullable) - для профиля пользователя
+- **app/models.py**: Добавлено поле `client_gender` к модели `TaxiOrder` (nullable)
+  - Это отдельное поле, которое заполняется при каждом заказе
+  - **Не обязательно** для заполнения
+  - Использует `Gender` enum с вариантами: `male`, `female`, `other`
 
 ### Изменения в schemas:
-- **app/schemas.py**: Обновлен импорт для добавления `Gender`
-- **app/schemas.py**: Добавлено `gender` поле в `UserCreate`
-- **app/schemas.py**: Добавлено `gender` поле в `UserUpdate`
-- **app/schemas.py**: Добавлено `gender` поле в `UserResponse` - теперь все User данные отображают gender профиля
+- **app/schemas.py**: Добавлено `client_gender` поле в `TaxiOrderCreate` (optional)
+- **app/schemas.py**: Добавлено `client_gender` поле в `TaxiOrderResponse`
+
+### Логика в endpoint:
+- **app/routers/taxi_orders.py**: Обновлен `create_taxi_order()` endpoint
+  - Принимает `client_gender` как опциональное поле
+  - Сохраняет указанный пол клиента в заказе
+  - Отправляет `client_gender` в WebSocket broadcast для драйверов
 
 ### Миграция:
-- **alembic/versions/add_gender_seat_type_pricing.py**: Добавлена колонка `gender` в таблицу `users`
+- **alembic/versions/add_gender_seat_type_pricing.py**: Добавлена колонка `client_gender` в таблицу `taxi_orders`
+
+### Примечание:
+- Поле `gender` было **удалено** из модели `User`
+- `Gender` enum сохранен и используется только для `taxi_orders.client_gender`
 
 ---
 
@@ -30,30 +40,7 @@
 
 ---
 
-## 2. Добавлено поле client_gender для заказов такси
-
-### Изменения в моделях:
-- **app/models.py**: Добавлено поле `client_gender` к модели `TaxiOrder` (nullable)
-  - Это отдельное поле, которое заполняется при каждом заказе
-  - **Не обязательно** для заполнения
-  - Отличается от поля `gender` в профиле пользователя
-
-### Изменения в schemas:
-- **app/schemas.py**: Добавлено `client_gender` поле в `TaxiOrderCreate` (optional)
-- **app/schemas.py**: Добавлено `client_gender` поле в `TaxiOrderResponse`
-
-### Логика в endpoint:
-- **app/routers/taxi_orders.py**: Обновлен `create_taxi_order()` endpoint
-  - Принимает `client_gender` как опциональное поле
-  - Сохраняет указанный пол клиента в заказе
-  - Отправляет `client_gender` в WebSocket broadcast для драйверов
-
-### Миграция:
-- **alembic/versions/add_gender_seat_type_pricing.py**: Добавлена колонка `client_gender` в таблицу `taxi_orders`
-
----
-
-## 3. Добавлен новый endpoint для удаления Driver
+## 2. Добавлен новый endpoint для удаления Driver
 
 ### Изменения в routers:
 - **app/routers/admin.py**: Добавлен новый DELETE endpoint `/api/admin/drivers/{driver_id}`

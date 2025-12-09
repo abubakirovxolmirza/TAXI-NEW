@@ -14,7 +14,6 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     confirm_password: str
-    gender: Optional[Gender] = None
     
     @validator('confirm_password')
     def passwords_match(cls, v, values):
@@ -32,7 +31,6 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     telephone: Optional[str] = None
     language: Optional[Language] = None
-    gender: Optional[Gender] = None
     profile_picture: Optional[str] = None
 
 
@@ -70,7 +68,6 @@ class UserResponse(UserBase):
     id: int
     role: UserRole
     language: Language
-    gender: Optional[Gender]
     profile_picture: Optional[str]
     is_active: bool
     created_at: datetime
