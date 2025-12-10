@@ -84,7 +84,7 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update user profile (name, telephone, language, gender, profile picture)"""
+    """Update user profile (name, telephone, language, profile picture)"""
     if user_update.name is not None:
         current_user.name = user_update.name
     
@@ -105,9 +105,6 @@ def update_profile(
     
     if user_update.language is not None:
         current_user.language = user_update.language
-    
-    if user_update.gender is not None:
-        current_user.gender = user_update.gender
     
     if user_update.profile_picture is not None:
         current_user.profile_picture = user_update.profile_picture

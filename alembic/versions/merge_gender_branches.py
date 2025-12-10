@@ -70,3 +70,4 @@ def downgrade():
     # For safety, we'll leave the columns in place
     pass
 
+
