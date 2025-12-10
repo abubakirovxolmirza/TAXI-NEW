@@ -92,26 +92,24 @@
 
 ## Как использовать новые функции
 
-### User Gender (профиль):
+### Регистрация пользователя:
 ```json
 POST /api/auth/register
 {
   "telephone": "99899123456",
   "name": "John Doe",
   "password": "password123",
-  "confirm_password": "password123",
-  "gender": "male"
+  "confirm_password": "password123"
 }
 ```
 
-### Обновление User профиля (имя, телефон, язык, пол):
+### Обновление профиля пользователя (имя, телефон, язык):
 ```json
 PUT /api/auth/profile
 {
   "name": "John Doe",
   "telephone": "99899987654",    // Новый номер телефона (проверяется на уникальность)
-  "language": "russian",
-  "gender": "male"
+  "language": "russian"
 }
 ```
 
@@ -133,7 +131,7 @@ POST /api/taxi-orders/
   "passengers": 1,
   "client_gender": "male",        // Optional - пол клиента для этого заказа
   "seat_type": "front",           // Optional - если не указать, выберется автоматически
-  "date": "07.12.2025",
+  "date": "09.12.2025",
   "time_start": "14:30",
   "time_end": "15:30"
 }
