@@ -6,9 +6,20 @@ from datetime import datetime, date, timezone
 from decimal import Decimal
 from app.database import get_db
 from app.models import (
-    User, Driver, DriverApplication, ApplicationStatus, UserRole,
-    TaxiOrder, DeliveryOrder, OrderStatus, Pricing, BalanceTransaction,
-    Notification, Feedback, SystemSettings
+    User,
+    Driver,
+    DriverApplication,
+    ApplicationStatus,
+    UserRole,
+    TaxiOrder,
+    DeliveryOrder,
+    OrderStatus,
+    Pricing,
+    BalanceTransaction,
+    Notification,
+    Feedback,
+    SystemSettings,
+    Rating,
 )
 from app.schemas import (
     DriverApplicationResponse, DriverApplicationReview,
@@ -259,6 +270,36 @@ def delete_driver(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Driver not found"
         )
+    
+    # Guardrails: do not delete if there is historical data that must be preserved
+    existing_rating = db.query(Rating.id).filter(Rating.driver_id == driver_id).first()
+    if existing_rating:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Driver has ratings and cannot be deleted. Please archive/disable instead.",
+        )
+    
+    existing_transactions = (
+        db.query(BalanceTransaction.id)
+        .filter(BalanceTransaction.driver_id == driver_id)
+        .first()
+    )
+    if existing_transactions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Driver has balance transactions and cannot be deleted. Please archive/disable instead.",
+        )
+    
+    # Detach nullable relationships to avoid FK violations (orders, notifications)
+    db.query(TaxiOrder).filter(TaxiOrder.driver_id == driver_id).update(
+        {TaxiOrder.driver_id: None}, synchronize_session=False
+    )
+    db.query(DeliveryOrder).filter(DeliveryOrder.driver_id == driver_id).update(
+        {DeliveryOrder.driver_id: None}, synchronize_session=False
+    )
+    db.query(Notification).filter(Notification.driver_id == driver_id).delete(
+        synchronize_session=False
+    )
     
     # Get associated user info before deletion
     user_id = driver.user_id
