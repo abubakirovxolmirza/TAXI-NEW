@@ -10,7 +10,7 @@ from app.schemas import (
 )
 from app.auth import get_current_admin
 
-router = APIRouter(prefix=\"/api/regions\", tags=[\"Regions\"])
+router = APIRouter(prefix="/api/regions", tags=["Regions"])
 
 
 @router.get("/", response_model=List[RegionResponse])
