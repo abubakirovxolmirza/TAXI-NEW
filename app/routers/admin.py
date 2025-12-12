@@ -428,7 +428,7 @@ def get_balance_history(
     }
 
 
-@router.post(\"/pricing\", response_model=PricingResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/pricing", response_model=PricingResponse, status_code=status.HTTP_201_CREATED)
 def create_pricing(
     pricing_data: PricingCreate,
     current_user: User = Depends(get_current_admin),
