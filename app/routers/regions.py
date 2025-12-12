@@ -64,21 +64,41 @@ def calculate_price(
     to_region_id: int,
     service_type: str,
     passengers: Optional[int] = None,
+    from_district_id: Optional[int] = None,
+    to_district_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
-    """Calculate price for a specific route"""
+    """Calculate price for a specific route (supports district-level pricing)"""
     if service_type not in ["taxi", "delivery"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid service_type. Must be 'taxi' or 'delivery'"
         )
     
-    pricing = db.query(Pricing).filter(
-        Pricing.from_region_id == from_region_id,
-        Pricing.to_region_id == to_region_id,
-        Pricing.service_type == service_type,
-        Pricing.is_active == True
-    ).first()
+    pricing = None
+    pricing_level = "default"
+    
+    # Try district-level pricing first
+    if from_district_id and to_district_id:
+        pricing = db.query(DistrictPricing).filter(
+            DistrictPricing.from_district_id == from_district_id,
+            DistrictPricing.to_district_id == to_district_id,
+            DistrictPricing.service_type == service_type,
+            DistrictPricing.is_active == True
+        ).first()
+        if pricing:
+            pricing_level = "district"
+    
+    # Fallback to region-level pricing
+    if not pricing:
+        pricing = db.query(Pricing).filter(
+            Pricing.from_region_id == from_region_id,
+            Pricing.to_region_id == to_region_id,
+            Pricing.service_type == service_type,
+            Pricing.is_active == True
+        ).first()
+        if pricing:
+            pricing_level = "region"
     
     if not pricing:
         raise HTTPException(
@@ -107,8 +127,11 @@ def calculate_price(
         total_price = price_per_person * passengers
         
         return {
+            "pricing_level": pricing_level,
             "from_region_id": from_region_id,
             "to_region_id": to_region_id,
+            "from_district_id": from_district_id,
+            "to_district_id": to_district_id,
             "service_type": service_type,
             "base_price": str(base_price),
             "passengers": passengers,
@@ -119,8 +142,11 @@ def calculate_price(
     else:
         # For delivery, no passenger count
         return {
+            "pricing_level": pricing_level,
             "from_region_id": from_region_id,
             "to_region_id": to_region_id,
+            "from_district_id": from_district_id,
+            "to_district_id": to_district_id,
             "service_type": service_type,
             "base_price": str(base_price),
             "passengers": passengers,

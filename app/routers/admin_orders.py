@@ -178,11 +178,11 @@ def delete_taxi_order(
             detail="Taxi order not found"
         )
     
-    # Only allow deletion of cancelled or pending orders
-    if order.status not in [OrderStatus.CANCELLED, OrderStatus.PENDING]:
+    # Only allow deletion of cancelled orders
+    if order.status != OrderStatus.CANCELLED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only delete cancelled or pending orders. Please cancel the order first."
+            detail="Can only delete cancelled orders. Please cancel the order first."
         )
     
     db.delete(order)
@@ -351,11 +351,11 @@ def delete_delivery_order(
             detail="Delivery order not found"
         )
     
-    # Only allow deletion of cancelled or pending orders
-    if order.status not in [OrderStatus.CANCELLED, OrderStatus.PENDING]:
+    # Only allow deletion of cancelled orders
+    if order.status != OrderStatus.CANCELLED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only delete cancelled or pending orders. Please cancel the order first."
+            detail="Can only delete cancelled orders. Please cancel the order first."
         )
     
     db.delete(order)
