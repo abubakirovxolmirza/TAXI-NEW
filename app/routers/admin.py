@@ -367,14 +367,68 @@ def add_driver_balance(
         db=db,
         title="Balance Added",
         message=f"Your balance has been credited with {balance_data.amount}",
-        notification_type="balance_added",
+        notification_type=\"balance_added\",
         driver_id=balance_data.driver_id
     )
     
     return transaction
 
 
-@router.post("/pricing", response_model=PricingResponse, status_code=status.HTTP_201_CREATED)
+@router.get(\"/drivers/balance/history\")
+def get_balance_history(
+    driver_id: Optional[int] = None,
+    transaction_type: Optional[str] = None,
+    limit: Optional[int] = 100,
+    offset: Optional[int] = 0,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    \"\"\"
+    Get balance transaction history with detailed information.
+    Shows which admin added money, to which driver, amount, and when.
+    \"\"\"
+    query = db.query(BalanceTransaction).order_by(BalanceTransaction.created_at.desc())
+    
+    # Filter by driver if specified
+    if driver_id:
+        query = query.filter(BalanceTransaction.driver_id == driver_id)
+    
+    # Filter by transaction type if specified
+    if transaction_type:
+        if transaction_type not in [\"credit\", \"debit\", \"refund\"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=\"Invalid transaction_type. Must be 'credit', 'debit', or 'refund'\"
+            )
+        query = query.filter(BalanceTransaction.transaction_type == transaction_type)
+    
+    transactions = query.limit(limit).offset(offset).all()
+    
+    # Build detailed response with admin and driver info
+    result = []
+    for transaction in transactions:
+        driver = db.query(Driver).filter(Driver.id == transaction.driver_id).first()
+        admin = db.query(User).filter(User.id == transaction.admin_id).first() if transaction.admin_id else None
+        
+        result.append({
+            \"id\": transaction.id,
+            \"driver_id\": transaction.driver_id,
+            \"driver_name\": driver.full_name if driver else \"Unknown\",
+            \"amount\": str(transaction.amount),
+            \"transaction_type\": transaction.transaction_type,
+            \"description\": transaction.description,
+            \"admin_id\": transaction.admin_id,
+            \"admin_name\": admin.name if admin else \"System\",
+            \"created_at\": transaction.created_at
+        })
+    
+    return {
+        \"total\": len(result),
+        \"transactions\": result
+    }
+
+
+@router.post(\"/pricing\", response_model=PricingResponse, status_code=status.HTTP_201_CREATED)
 def create_pricing(
     pricing_data: PricingCreate,
     current_user: User = Depends(get_current_admin),

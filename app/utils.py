@@ -97,19 +97,33 @@ def calculate_taxi_price(
     from_region_id: int,
     to_region_id: int,
     passengers: int,
-    seat_type: Optional[str] = None
+    seat_type: Optional[str] = None,
+    from_district_id: Optional[int] = None,
+    to_district_id: Optional[int] = None
 ) -> Decimal:
-    """Calculate taxi price with seat-specific pricing and discounts based on number of passengers"""
-    from app.models import SeatType
-    
-    pricing = db.query(Pricing).filter(
-        Pricing.from_region_id == from_region_id,
-        Pricing.to_region_id == to_region_id,
-        Pricing.service_type == "taxi",
-        Pricing.is_active == True
-    ).first()
+    """Calculate taxi price with district-level pricing support (district > region > default)"""
+    from app.models import SeatType, DistrictPricing
     
     total_passengers = passengers if passengers and passengers > 0 else 1
+    pricing = None
+    
+    # Try district-level pricing first (if both districts provided)
+    if from_district_id and to_district_id:
+        pricing = db.query(DistrictPricing).filter(
+            DistrictPricing.from_district_id == from_district_id,
+            DistrictPricing.to_district_id == to_district_id,
+            DistrictPricing.service_type == "taxi",
+            DistrictPricing.is_active == True
+        ).first()
+    
+    # Fallback to region-level pricing
+    if not pricing:
+        pricing = db.query(Pricing).filter(
+            Pricing.from_region_id == from_region_id,
+            Pricing.to_region_id == to_region_id,
+            Pricing.service_type == "taxi",
+            Pricing.is_active == True
+        ).first()
 
     if not pricing:
         # Default pricing if not set (per passenger)
@@ -153,15 +167,32 @@ def calculate_taxi_price(
 def calculate_delivery_price(
     db: Session,
     from_region_id: int,
-    to_region_id: int
+    to_region_id: int,
+    from_district_id: Optional[int] = None,
+    to_district_id: Optional[int] = None
 ) -> Decimal:
-    """Calculate delivery price"""
-    pricing = db.query(Pricing).filter(
-        Pricing.from_region_id == from_region_id,
-        Pricing.to_region_id == to_region_id,
-        Pricing.service_type == "delivery",
-        Pricing.is_active == True
-    ).first()
+    """Calculate delivery price with district-level pricing support (district > region > default)"""
+    from app.models import DistrictPricing
+    
+    pricing = None
+    
+    # Try district-level pricing first (if both districts provided)
+    if from_district_id and to_district_id:
+        pricing = db.query(DistrictPricing).filter(
+            DistrictPricing.from_district_id == from_district_id,
+            DistrictPricing.to_district_id == to_district_id,
+            DistrictPricing.service_type == "delivery",
+            DistrictPricing.is_active == True
+        ).first()
+    
+    # Fallback to region-level pricing
+    if not pricing:
+        pricing = db.query(Pricing).filter(
+            Pricing.from_region_id == from_region_id,
+            Pricing.to_region_id == to_region_id,
+            Pricing.service_type == "delivery",
+            Pricing.is_active == True
+        ).first()
     
     if not pricing:
         # Default pricing if not set

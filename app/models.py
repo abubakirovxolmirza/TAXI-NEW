@@ -126,6 +126,29 @@ class District(Base):
     region = relationship("Region", back_populates="districts")
 
 
+class DistrictPricing(Base):
+    __tablename__ = "district_pricing"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    from_district_id = Column(Integer, ForeignKey("districts.id"), nullable=False)
+    to_district_id = Column(Integer, ForeignKey("districts.id"), nullable=False)
+    service_type = Column(String(20), nullable=False)  # "taxi" or "delivery"
+    base_price = Column(Numeric(10, 2), nullable=False)
+    front_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for front seat
+    back_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for back seat
+    discount_1_passenger = Column(Numeric(5, 2), default=0.00)  # percentage
+    discount_2_passengers = Column(Numeric(5, 2), default=0.00)
+    discount_3_passengers = Column(Numeric(5, 2), default=0.00)
+    discount_full_car = Column(Numeric(5, 2), default=0.00)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    from_district = relationship("District", foreign_keys=[from_district_id])
+    to_district = relationship("District", foreign_keys=[to_district_id])
+
+
 class TaxiOrder(Base):
     __tablename__ = "taxi_orders"
     
@@ -300,7 +323,7 @@ class BalanceTransaction(Base):
     
     # Relationships
     driver = relationship("Driver", back_populates="balance_transactions")
-    admin = relationship("User", foreign_keys=[admin_id])
+    admin = relationship("User", foreign_keys=[admin_id], backref="balance_transactions_created")
 
 
 class Notification(Base):

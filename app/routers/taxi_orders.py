@@ -52,13 +52,15 @@ async def create_taxi_order(
         else:  # 2 or more passengers
             seat_type = SeatType.BACK
     
-    # Calculate price (with seat-specific pricing if available)
+    # Calculate price (district pricing > region pricing > default)
     price = calculate_taxi_price(
         db=db,
         from_region_id=order_data.from_region_id,
         to_region_id=order_data.to_region_id,
         passengers=order_data.passengers,
-        seat_type=seat_type
+        seat_type=seat_type,
+        from_district_id=order_data.from_district_id,
+        to_district_id=order_data.to_district_id
     )
     
     # Calculate service fee and driver earnings

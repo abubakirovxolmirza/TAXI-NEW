@@ -2,10 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
-from app.models import Region, District, Pricing
-from app.schemas import RegionResponse, RegionCreate, DistrictResponse, DistrictCreate, PricingResponse
+from app.models import Region, District, Pricing, DistrictPricing, User
+from app.schemas import (
+    RegionResponse, RegionCreate, DistrictResponse, DistrictCreate, PricingResponse,
+    RegionCreateWithPricing, DistrictCreateWithPricing,
+    DistrictPricingCreate, DistrictPricingUpdate, DistrictPricingResponse
+)
+from app.auth import get_current_admin
 
-router = APIRouter(prefix="/api/regions", tags=["Regions"])
+router = APIRouter(prefix=\"/api/regions\", tags=[\"Regions\"])
 
 
 @router.get("/", response_model=List[RegionResponse])

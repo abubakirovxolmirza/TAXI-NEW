@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
 from app.routers import (
     auth, taxi_orders, delivery_orders, driver,
-    admin, ratings, regions, notifications, feedback, websocket
+    admin, ratings, regions, notifications, feedback, websocket,
+    admin_orders, regions_admin
 )
 from app.config import settings
 from app.websocket import manager
@@ -49,6 +50,8 @@ app.include_router(taxi_orders.router)
 app.include_router(delivery_orders.router)
 app.include_router(driver.router)
 app.include_router(admin.router)
+app.include_router(admin_orders.router)  # Admin order management
+app.include_router(regions_admin.router)  # Admin regions/districts/pricing
 app.include_router(ratings.router)
 app.include_router(regions.router)
 app.include_router(notifications.router)

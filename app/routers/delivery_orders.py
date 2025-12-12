@@ -41,11 +41,13 @@ async def create_delivery_order(
             telephone=order_data.sender_telephone,
             username=order_data.username
         )
-    # Calculate price
+    # Calculate price (district pricing > region pricing > default)
     price = calculate_delivery_price(
         db=db,
         from_region_id=order_data.from_region_id,
-        to_region_id=order_data.to_region_id
+        to_region_id=order_data.to_region_id,
+        from_district_id=order_data.from_district_id,
+        to_district_id=order_data.to_district_id
     )
     
     # Calculate service fee and driver earnings

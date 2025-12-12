@@ -149,6 +149,29 @@ class TaxiOrderCreate(BaseModel):
         return v
 
 
+class TaxiOrderUpdate(BaseModel):
+    username: Optional[str] = None
+    telephone: Optional[str] = None
+    from_region_id: Optional[int] = None
+    from_district_id: Optional[int] = None
+    to_region_id: Optional[int] = None
+    to_district_id: Optional[int] = None
+    pickup_latitude: Optional[str] = None
+    pickup_longitude: Optional[str] = None
+    pickup_address: Optional[str] = None
+    passengers: Optional[int] = Field(None, ge=1, le=4)
+    client_gender: Optional[Gender] = None
+    seat_type: Optional[SeatType] = None
+    is_mail_delivery: Optional[bool] = None
+    date: Optional[str] = None
+    time_start: Optional[str] = None
+    time_end: Optional[str] = None
+    scheduled_datetime: Optional[datetime] = None
+    price: Optional[Decimal] = None
+    note: Optional[str] = None
+    status: Optional[OrderStatus] = None
+
+
 class TaxiOrderResponse(BaseModel):
     id: int
     user_id: int
@@ -207,6 +230,30 @@ class DeliveryOrderCreate(BaseModel):
     time_end: str  # HH:MM
     scheduled_datetime: Optional[datetime] = None  # Scheduled pickup datetime (ISO format)
     note: Optional[str] = None
+
+
+class DeliveryOrderUpdate(BaseModel):
+    username: Optional[str] = None
+    sender_telephone: Optional[str] = None
+    receiver_telephone: Optional[str] = None
+    from_region_id: Optional[int] = None
+    from_district_id: Optional[int] = None
+    to_region_id: Optional[int] = None
+    to_district_id: Optional[int] = None
+    pickup_latitude: Optional[str] = None
+    pickup_longitude: Optional[str] = None
+    pickup_address: Optional[str] = None
+    dropoff_latitude: Optional[str] = None
+    dropoff_longitude: Optional[str] = None
+    dropoff_address: Optional[str] = None
+    item_type: Optional[ItemType] = None
+    date: Optional[str] = None
+    time_start: Optional[str] = None
+    time_end: Optional[str] = None
+    scheduled_datetime: Optional[datetime] = None
+    price: Optional[Decimal] = None
+    note: Optional[str] = None
+    status: Optional[OrderStatus] = None
 
 
 class DeliveryOrderResponse(BaseModel):
@@ -398,6 +445,77 @@ class BalanceTransactionResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class BalanceHistoryDetail(BaseModel):
+    id: int
+    driver_id: int
+    driver_name: str
+    amount: Decimal
+    transaction_type: str
+    description: Optional[str]
+    admin_id: Optional[int]
+    admin_name: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# District Pricing Schemas
+class DistrictPricingCreate(BaseModel):
+    from_district_id: int
+    to_district_id: int
+    service_type: str  # "taxi" or "delivery"
+    base_price: Decimal
+    front_seat_price: Optional[Decimal] = None
+    back_seat_price: Optional[Decimal] = None
+    discount_1_passenger: Decimal = Decimal("0.00")
+    discount_2_passengers: Decimal = Decimal("0.00")
+    discount_3_passengers: Decimal = Decimal("0.00")
+    discount_full_car: Decimal = Decimal("0.00")
+
+
+class DistrictPricingUpdate(BaseModel):
+    base_price: Optional[Decimal] = None
+    front_seat_price: Optional[Decimal] = None
+    back_seat_price: Optional[Decimal] = None
+    discount_1_passenger: Optional[Decimal] = None
+    discount_2_passengers: Optional[Decimal] = None
+    discount_3_passengers: Optional[Decimal] = None
+    discount_full_car: Optional[Decimal] = None
+
+
+class DistrictPricingResponse(BaseModel):
+    id: int
+    from_district_id: int
+    to_district_id: int
+    service_type: str
+    base_price: Decimal
+    front_seat_price: Optional[Decimal]
+    back_seat_price: Optional[Decimal]
+    discount_1_passenger: Decimal
+    discount_2_passengers: Decimal
+    discount_3_passengers: Decimal
+    discount_full_car: Decimal
+    is_active: bool
+    
+    class Config:
+        from_attributes = True
+
+
+# Region and District Creation with Pricing
+class RegionCreateWithPricing(BaseModel):
+    name_uz_latin: str
+    name_uz_cyrillic: str
+    name_russian: str
+
+
+class DistrictCreateWithPricing(BaseModel):
+    name_uz_latin: str
+    name_uz_cyrillic: str
+    name_russian: str
+    region_id: int
 
 
 # Notification Schemas
