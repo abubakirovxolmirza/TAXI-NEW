@@ -1,0 +1,240 @@
+(venv) root@new-taxi:/var/www/taxi-service/TAXI-NEW# pytest tests/test_new_features_implementation.py -v
+============================================== test session starts ==============================================
+platform linux -- Python 3.12.3, pytest-9.0.1, pluggy-1.6.0 -- /var/www/taxi-service/TAXI-NEW/venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /var/www/taxi-service/TAXI-NEW
+configfile: pytest.ini
+plugins: anyio-4.11.0
+collected 14 items                                                                                              
+
+tests/test_new_features_implementation.py::test_create_bonus ✅ Redis PubSub listener started
+ERROR                                        [  7%]
+tests/test_new_features_implementation.py::test_get_active_bonus ✅ Redis PubSub listener started
+ERROR                                    [ 14%]
+tests/test_new_features_implementation.py::test_update_bonus ✅ Redis PubSub listener started
+ERROR                                        [ 21%]
+tests/test_new_features_implementation.py::test_bonus_calculation ERROR                                   [ 28%]
+tests/test_new_features_implementation.py::test_order_with_bonus_user_id ✅ Redis PubSub listener started
+ERROR                            [ 35%]
+tests/test_new_features_implementation.py::test_order_acceptance_history_tracking ERROR                   [ 42%]
+tests/test_new_features_implementation.py::test_get_pending_time_setting PASSED                           [ 50%]
+tests/test_new_features_implementation.py::test_update_pending_time_setting ✅ Redis PubSub listener started
+ERROR                         [ 57%]
+tests/test_new_features_implementation.py::test_update_order_pending_time ✅ Redis PubSub listener started
+ERROR                           [ 64%]
+tests/test_new_features_implementation.py::test_public_orders_endpoint ✅ Redis PubSub listener started
+ERROR                              [ 71%]
+tests/test_new_features_implementation.py::test_make_order_public ✅ Redis PubSub listener started
+ERROR                                   [ 78%]
+tests/test_new_features_implementation.py::test_gender_enum_no_other ERROR                                [ 85%]
+tests/test_new_features_implementation.py::test_order_with_default_pending_time ✅ Redis PubSub listener started
+ERROR                     [ 92%]
+tests/test_new_features_implementation.py::test_bonus_not_applied_without_bonus_user_id ERROR             [100%]
+
+==================================================== ERRORS =====================================================
+______________________________________ ERROR at setup of test_create_bonus ______________________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 19
+  def test_create_bonus(client: TestClient, admin_token: str):
+E       fixture 'admin_token' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:19
+--------------------------------------------- Captured stdout setup ---------------------------------------------
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+[TASKS] Background tasks started
+____________________________________ ERROR at setup of test_get_active_bonus ____________________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 38
+  def test_get_active_bonus(client: TestClient, db: Session):
+E       fixture 'db' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:38
+--------------------------------------------- Captured stdout setup ---------------------------------------------
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+[TASKS] Background tasks started
+______________________________________ ERROR at setup of test_update_bonus ______________________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 57
+  def test_update_bonus(client: TestClient, admin_token: str, db: Session):
+E       fixture 'admin_token' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:57
+--------------------------------------------- Captured stdout setup ---------------------------------------------
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+[TASKS] Background tasks started
+___________________________________ ERROR at setup of test_bonus_calculation ____________________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 86
+  def test_bonus_calculation(db: Session):
+E       fixture 'db' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:86
+________________________________ ERROR at setup of test_order_with_bonus_user_id ________________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 146
+  def test_order_with_bonus_user_id(client: TestClient, user_token: str, db: Session):
+E       fixture 'user_token' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:146
+--------------------------------------------- Captured stdout setup ---------------------------------------------
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+[TASKS] Background tasks started
+___________________________ ERROR at setup of test_order_acceptance_history_tracking ____________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 183
+  def test_order_acceptance_history_tracking(db: Session):
+E       fixture 'db' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:183
+______________________________ ERROR at setup of test_update_pending_time_setting _______________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 254
+  def test_update_pending_time_setting(client: TestClient, admin_token: str):
+E       fixture 'admin_token' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:254
+--------------------------------------------- Captured stdout setup ---------------------------------------------
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+[TASKS] Background tasks started
+_______________________________ ERROR at setup of test_update_order_pending_time ________________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 267
+  def test_update_order_pending_time(client: TestClient, admin_token: str, db: Session):
+E       fixture 'admin_token' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:267
+--------------------------------------------- Captured stdout setup ---------------------------------------------
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+[TASKS] Background tasks started
+_________________________________ ERROR at setup of test_public_orders_endpoint _________________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 312
+  def test_public_orders_endpoint(client: TestClient, driver_token: str, db: Session):
+E       fixture 'driver_token' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:312
+--------------------------------------------- Captured stdout setup ---------------------------------------------
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+[TASKS] Background tasks started
+___________________________________ ERROR at setup of test_make_order_public ____________________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 356
+  def test_make_order_public(client: TestClient, admin_token: str, db: Session):
+E       fixture 'admin_token' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:356
+--------------------------------------------- Captured stdout setup ---------------------------------------------
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+[TASKS] Background tasks started
+__________________________________ ERROR at setup of test_gender_enum_no_other __________________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 400
+  def test_gender_enum_no_other(db: Session):
+E       fixture 'db' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:400
+____________________________ ERROR at setup of test_order_with_default_pending_time _____________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 411
+  def test_order_with_default_pending_time(client: TestClient, user_token: str, db: Session):
+E       fixture 'user_token' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:411
+--------------------------------------------- Captured stdout setup ---------------------------------------------
+🚀 Starting up Taxi Service API...
+✅ Redis connected successfully
+[TASKS] Background tasks started
+________________________ ERROR at setup of test_bonus_not_applied_without_bonus_user_id _________________________
+file /var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py, line 444
+  def test_bonus_not_applied_without_bonus_user_id(db: Session):
+E       fixture 'db' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_database, db_session, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/var/www/taxi-service/TAXI-NEW/tests/test_new_features_implementation.py:444
+=============================================== warnings summary ================================================
+venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:271: 18 warnings
+  /var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:271: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/database.py:9
+  /var/www/taxi-service/TAXI-NEW/app/database.py:9: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+app/schemas.py:18
+  /var/www/taxi-service/TAXI-NEW/app/schemas.py:18: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('confirm_password')
+
+app/schemas.py:42
+  /var/www/taxi-service/TAXI-NEW/app/schemas.py:42: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('confirm_password')
+
+app/schemas.py:55
+  /var/www/taxi-service/TAXI-NEW/app/schemas.py:55: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('confirm_password')
+
+app/schemas.py:147
+  /var/www/taxi-service/TAXI-NEW/app/schemas.py:147: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('to_region_id')
+
+venv/lib/python3.12/site-packages/pydantic/fields.py:768
+  /var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/pydantic/fields.py:768: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`min_items` is deprecated and will be removed, use `min_length` instead', DeprecationWarning)
+
+app/schemas.py:583
+  /var/www/taxi-service/TAXI-NEW/app/schemas.py:583: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('service_fee_percentage')
+
+app/schemas.py:612
+  /var/www/taxi-service/TAXI-NEW/app/schemas.py:612: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('bonus_percent')
+
+venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854
+  /var/www/taxi-service/TAXI-NEW/venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+tests/test_new_features_implementation.py: 10 warnings
+  /var/www/taxi-service/TAXI-NEW/app/websocket.py:379: DeprecationWarning: Call to deprecated close. (Use aclose() instead) -- Deprecated since version 5.0.0.
+    await self.pubsub.close()
+
+tests/test_new_features_implementation.py: 10 warnings
+  /var/www/taxi-service/TAXI-NEW/app/websocket.py:381: DeprecationWarning: Call to deprecated close. (Use aclose() instead) -- Deprecated since version 5.0.0.
+    await self.redis_pool.close()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================================ short test summary info ============================================
+ERROR tests/test_new_features_implementation.py::test_create_bonus
+ERROR tests/test_new_features_implementation.py::test_get_active_bonus
+ERROR tests/test_new_features_implementation.py::test_update_bonus
+ERROR tests/test_new_features_implementation.py::test_bonus_calculation
+ERROR tests/test_new_features_implementation.py::test_order_with_bonus_user_id
+ERROR tests/test_new_features_implementation.py::test_order_acceptance_history_tracking
+ERROR tests/test_new_features_implementation.py::test_update_pending_time_setting
+ERROR tests/test_new_features_implementation.py::test_update_order_pending_time
+ERROR tests/test_new_features_implementation.py::test_public_orders_endpoint
+ERROR tests/test_new_features_implementation.py::test_make_order_public
+ERROR tests/test_new_features_implementation.py::test_gender_enum_no_other
+ERROR tests/test_new_features_implementation.py::test_order_with_default_pending_time
+ERROR tests/test_new_features_implementation.py::test_bonus_not_applied_without_bonus_user_id
+=================================== 1 passed, 47 warnings, 13 errors in 0.43s ===================================
+(venv) root@new-taxi:/var/www/taxi-service/TAXI-NEW# 
