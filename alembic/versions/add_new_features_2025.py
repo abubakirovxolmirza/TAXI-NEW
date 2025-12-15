@@ -65,14 +65,28 @@ def upgrade():
     # First, create a new enum type without 'other'
     op.execute("CREATE TYPE gender_new AS ENUM ('male', 'female')")
     
-    # Update any 'other' values to 'male' or 'female' (or null)
+    # Update any 'other' values to NULL in all tables that use gender
     op.execute("UPDATE taxi_orders SET client_gender = NULL WHERE client_gender = 'other'")
     
-    # Alter column to use new enum
+    # Check if users table has gender column and update it
+    op.execute("""
+        DO $$ 
+        BEGIN 
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'users' AND column_name = 'gender'
+            ) THEN
+                UPDATE users SET gender = NULL WHERE gender = 'other';
+                ALTER TABLE users ALTER COLUMN gender TYPE gender_new USING gender::text::gender_new;
+            END IF;
+        END $$;
+    """)
+    
+    # Alter taxi_orders column to use new enum
     op.execute("ALTER TABLE taxi_orders ALTER COLUMN client_gender TYPE gender_new USING client_gender::text::gender_new")
     
-    # Drop old enum and rename new one
-    op.execute("DROP TYPE gender")
+    # Drop old enum with CASCADE and rename new one
+    op.execute("DROP TYPE gender CASCADE")
     op.execute("ALTER TYPE gender_new RENAME TO gender")
     
     # Insert default bonus configuration
@@ -88,8 +102,25 @@ def downgrade():
     
     # Recreate old Gender enum with 'other'
     op.execute("CREATE TYPE gender_new AS ENUM ('male', 'female', 'other')")
+    
+    # Update taxi_orders to use new enum
     op.execute("ALTER TABLE taxi_orders ALTER COLUMN client_gender TYPE gender_new USING client_gender::text::gender_new")
-    op.execute("DROP TYPE gender")
+    
+    # Update users table if it has gender column
+    op.execute("""
+        DO $$ 
+        BEGIN 
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'users' AND column_name = 'gender'
+            ) THEN
+                ALTER TABLE users ALTER COLUMN gender TYPE gender_new USING gender::text::gender_new;
+            END IF;
+        END $$;
+    """)
+    
+    # Drop old enum and rename new one
+    op.execute("DROP TYPE gender CASCADE")
     op.execute("ALTER TYPE gender_new RENAME TO gender")
     
     # Drop order_acceptance_history table
