@@ -1350,6 +1350,16 @@ async def accept_order(
     order.accepted_at = datetime.now(timezone.utc)
     order.is_confirmed = False  # Not confirmed yet
     
+    # Record acceptance in history
+    from app.models import OrderAcceptanceHistory
+    acceptance_record = OrderAcceptanceHistory(
+        driver_id=driver.id,
+        taxi_order_id=order.id if order_type == "taxi" else None,
+        delivery_order_id=order.id if order_type == "delivery" else None,
+        action="accepted"
+    )
+    db.add(acceptance_record)
+    
     db.commit()
     db.refresh(order)
     
@@ -1451,6 +1461,32 @@ async def complete_order(
     # Complete order
     order.status = OrderStatus.COMPLETED
     order.completed_at = datetime.now(timezone.utc)
+
+    # Calculate and add bonus if bonus_user_id is provided
+    if order.bonus_user_id:
+        from app.models import Bonus
+        from decimal import Decimal
+        
+        # Get active bonus percentage
+        active_bonus = db.query(Bonus).filter(Bonus.is_active == True).first()
+        
+        if active_bonus and order.price:
+            # Calculate bonus amount
+            bonus_amount = (order.price * active_bonus.bonus_percent) / Decimal("100")
+            
+            # Add bonus to user's bonus_ball
+            bonus_user = db.query(User).filter(User.id == order.bonus_user_id).first()
+            if bonus_user:
+                bonus_user.bonus_ball = (bonus_user.bonus_ball or Decimal("0.00")) + bonus_amount
+                
+                # Notify bonus user
+                create_notification(
+                    db=db,
+                    title="Bonus Earned",
+                    message=f"You earned {bonus_amount} bonus from order #{order.id}. Your total bonus balance is now {bonus_user.bonus_ball}.",
+                    notification_type="bonus_earned",
+                    user_id=bonus_user.id
+                )
 
     db.commit()
     db.refresh(order)

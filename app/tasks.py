@@ -258,7 +258,99 @@ async def check_unconfirmed_orders():
         await asyncio.sleep(60)
 
 
+async def check_public_order_timeout():
+    """
+    Background task to check for pending orders that should become public
+    If no driver accepts within the configured timeout (default 15 seconds), make order public
+    """
+    while True:
+        try:
+            db: Session = SessionLocal()
+            
+            # Get the public order timeout setting (default 15 seconds)
+            from app.models import SystemSettings
+            timeout_setting = db.query(SystemSettings).filter(
+                SystemSettings.setting_key == "public_order_timeout"
+            ).first()
+            
+            timeout_seconds = 15  # default
+            if timeout_setting and timeout_setting.setting_value:
+                try:
+                    timeout_seconds = int(timeout_setting.setting_value)
+                except (ValueError, TypeError):
+                    pass
+            
+            # Get current time
+            current_time = datetime.now(timezone.utc)
+            expiration_time = current_time - timedelta(seconds=timeout_seconds)
+            
+            # Find taxi orders that are pending, not public, not accepted, and expired
+            eligible_taxi_orders = db.query(TaxiOrder).filter(
+                TaxiOrder.status == OrderStatus.PENDING,
+                TaxiOrder.public_order == False,
+                TaxiOrder.driver_id.is_(None),
+                TaxiOrder.created_at <= expiration_time
+            ).all()
+            
+            # Find delivery orders that are pending, not public, not accepted, and expired
+            eligible_delivery_orders = db.query(DeliveryOrder).filter(
+                DeliveryOrder.status == OrderStatus.PENDING,
+                DeliveryOrder.public_order == False,
+                DeliveryOrder.driver_id.is_(None),
+                DeliveryOrder.created_at <= expiration_time
+            ).all()
+            
+            # Process taxi orders
+            for order in eligible_taxi_orders:
+                order.public_order = True
+                order.public_order_activated_at = current_time
+                
+                db.commit()
+                db.refresh(order)
+                
+                # Notify all drivers that order is now public
+                await manager.broadcast_to_all_drivers({
+                    "type": "order_public",
+                    "order_id": order.id,
+                    "order_type": "taxi",
+                    "message": "Order is now public and available to all drivers",
+                    "order": _serialize_pending_order_for_driver(order, "taxi")
+                })
+                
+                print(f"[TASK] Taxi order #{order.id} is now public (no acceptance within {timeout_seconds}s)")
+            
+            # Process delivery orders
+            for order in eligible_delivery_orders:
+                order.public_order = True
+                order.public_order_activated_at = current_time
+                
+                db.commit()
+                db.refresh(order)
+                
+                # Notify all drivers that order is now public
+                await manager.broadcast_to_all_drivers({
+                    "type": "order_public",
+                    "order_id": order.id,
+                    "order_type": "delivery",
+                    "message": "Order is now public and available to all drivers",
+                    "order": _serialize_pending_order_for_driver(order, "delivery")
+                })
+                
+                print(f"[TASK] Delivery order #{order.id} is now public (no acceptance within {timeout_seconds}s)")
+            
+            db.close()
+            
+        except Exception as e:
+            print(f"[TASK ERROR] Error checking public order timeout: {str(e)}")
+            if 'db' in locals():
+                db.close()
+        
+        # Check every 5 seconds for responsiveness
+        await asyncio.sleep(5)
+
+
 def start_background_tasks():
     """Start all background tasks"""
     asyncio.create_task(check_unconfirmed_orders())
+    asyncio.create_task(check_public_order_timeout())
     print("[TASKS] Background tasks started")

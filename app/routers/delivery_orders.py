@@ -78,6 +78,8 @@ async def create_delivery_order(
         service_fee=service_fee,
         driver_earnings=driver_earnings,
         note=order_data.note,
+        bonus_user_id=order_data.bonus_user_id,
+        public_order=False,
         status=OrderStatus.PENDING
     )
     
@@ -408,5 +410,95 @@ async def cancel_delivery_order(
         "driver_id": order.driver_id,
         "cancellation_reason": order.cancellation_reason,
     })
+    
+    return order
+
+
+@router.get("/public", response_model=List[DeliveryOrderResponse])
+def get_public_delivery_orders(
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get public delivery orders (available to all drivers)"""
+    # Only drivers can view public orders
+    if not current_user.driver_profile:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can view public orders"
+        )
+    
+    limit, offset = _normalize_pagination(limit, offset)
+    
+    orders = db.query(DeliveryOrder).filter(
+        DeliveryOrder.status == OrderStatus.PENDING,
+        DeliveryOrder.public_order == True
+    ).order_by(DeliveryOrder.created_at.desc()).offset(offset).limit(limit).all()
+    
+    return orders
+
+
+@router.put("/{order_id}/pending-time", response_model=DeliveryOrderResponse)
+def update_delivery_order_pending_time(
+    order_id: int,
+    pending_time_update: "PendingTimeUpdate",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update pending_time for a delivery order (Admin/Superadmin only)"""
+    from app.schemas import PendingTimeUpdate
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update pending time"
+        )
+    
+    order = db.query(DeliveryOrder).filter(DeliveryOrder.id == order_id).first()
+    
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+    
+    order.pending_time = pending_time_update.pending_time
+    
+    db.commit()
+    db.refresh(order)
+    
+    return order
+
+
+@router.get("/{order_id}/acceptance-history", response_model=List["OrderAcceptanceHistoryResponse"])
+def get_delivery_order_acceptance_history(
+    order_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get acceptance history for a delivery order (Admin/Superadmin only)"""
+    from app.models import OrderAcceptanceHistory
+    from app.schemas import OrderAcceptanceHistoryResponse
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can view acceptance history"
+        )
+    
+    order = db.query(DeliveryOrder).filter(DeliveryOrder.id == order_id).first()
+    
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+    
+    history = db.query(OrderAcceptanceHistory).filter(
+        OrderAcceptanceHistory.delivery_order_id == order_id
+    ).order_by(OrderAcceptanceHistory.created_at.desc()).all()
+    
+    return history
     
     return order
