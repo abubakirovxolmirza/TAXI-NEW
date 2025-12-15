@@ -4,7 +4,7 @@ from app.database import engine, Base
 from app.routers import (
     auth, taxi_orders, delivery_orders, driver,
     admin, ratings, regions, notifications, feedback, websocket,
-    admin_orders, regions_admin, bonus
+    admin_orders, regions_admin, bonus, order_history, pending_time, public_orders
 )
 from app.config import settings
 from app.websocket import manager
@@ -52,12 +52,15 @@ app.include_router(driver.router)
 app.include_router(admin.router)
 app.include_router(admin_orders.router)  # Admin order management
 app.include_router(regions_admin.router)  # Admin regions/districts/pricing
-app.include_router(bonus.router)  # Bonus management
 app.include_router(ratings.router)
 app.include_router(regions.router)
 app.include_router(notifications.router)
 app.include_router(feedback.router)
 app.include_router(websocket.router)  # WebSocket router
+app.include_router(bonus.router)  # Bonus management
+app.include_router(order_history.router)  # Order acceptance history
+app.include_router(pending_time.router)  # Pending time management
+app.include_router(public_orders.router)  # Public orders
 
 
 @app.get("/")

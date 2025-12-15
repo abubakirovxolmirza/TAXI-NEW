@@ -258,99 +258,107 @@ async def check_unconfirmed_orders():
         await asyncio.sleep(60)
 
 
-async def check_public_order_timeout():
+async def check_pending_orders_for_public():
     """
-    Background task to check for pending orders that should become public
-    If no driver accepts within the configured timeout (default 15 seconds), make order public
+    Background task to check pending orders and make them public after pending_time expires
+    Runs every 5 seconds to check for orders that should become public
     """
     while True:
         try:
             db: Session = SessionLocal()
             
-            # Get the public order timeout setting (default 15 seconds)
-            from app.models import SystemSettings
-            timeout_setting = db.query(SystemSettings).filter(
-                SystemSettings.setting_key == "public_order_timeout"
-            ).first()
-            
-            timeout_seconds = 15  # default
-            if timeout_setting and timeout_setting.setting_value:
-                try:
-                    timeout_seconds = int(timeout_setting.setting_value)
-                except (ValueError, TypeError):
-                    pass
-            
             # Get current time
             current_time = datetime.now(timezone.utc)
-            expiration_time = current_time - timedelta(seconds=timeout_seconds)
             
-            # Find taxi orders that are pending, not public, not accepted, and expired
-            eligible_taxi_orders = db.query(TaxiOrder).filter(
+            # Find taxi orders that are pending, not public, and have expired pending_time
+            taxi_orders_to_make_public = db.query(TaxiOrder).filter(
                 TaxiOrder.status == OrderStatus.PENDING,
                 TaxiOrder.public_order == False,
-                TaxiOrder.driver_id.is_(None),
-                TaxiOrder.created_at <= expiration_time
+                TaxiOrder.driver_id == None,  # No driver assigned yet
+                TaxiOrder.pending_time.isnot(None)
             ).all()
             
-            # Find delivery orders that are pending, not public, not accepted, and expired
-            eligible_delivery_orders = db.query(DeliveryOrder).filter(
+            # Find delivery orders that are pending, not public, and have expired pending_time
+            delivery_orders_to_make_public = db.query(DeliveryOrder).filter(
                 DeliveryOrder.status == OrderStatus.PENDING,
                 DeliveryOrder.public_order == False,
-                DeliveryOrder.driver_id.is_(None),
-                DeliveryOrder.created_at <= expiration_time
+                DeliveryOrder.driver_id == None,  # No driver assigned yet
+                DeliveryOrder.pending_time.isnot(None)
             ).all()
             
             # Process taxi orders
-            for order in eligible_taxi_orders:
-                order.public_order = True
-                order.public_order_activated_at = current_time
+            for order in taxi_orders_to_make_public:
+                # Check if pending_time has expired
+                time_elapsed = (current_time - order.created_at).total_seconds()
                 
-                db.commit()
-                db.refresh(order)
-                
-                # Notify all drivers that order is now public
-                await manager.broadcast_to_all_drivers({
-                    "type": "order_public",
-                    "order_id": order.id,
-                    "order_type": "taxi",
-                    "message": "Order is now public and available to all drivers",
-                    "order": _serialize_pending_order_for_driver(order, "taxi")
-                })
-                
-                print(f"[TASK] Taxi order #{order.id} is now public (no acceptance within {timeout_seconds}s)")
+                if time_elapsed >= order.pending_time:
+                    # Make order public
+                    order.public_order = True
+                    db.commit()
+                    db.refresh(order)
+                    
+                    # Notify user
+                    create_notification(
+                        db=db,
+                        title="Order Now Public",
+                        message=f"Your taxi order #{order.id} is now visible to all drivers.",
+                        notification_type="order_public",
+                        user_id=order.user_id
+                    )
+                    
+                    # Broadcast to all drivers
+                    await manager.broadcast_to_all_drivers({
+                        "type": "order_now_public",
+                        "order_id": order.id,
+                        "order_type": "taxi",
+                        "order": _serialize_pending_order_for_driver(order, "taxi")
+                    })
+                    
+                    print(f"[TASK] Taxi order #{order.id} is now public after {order.pending_time} seconds")
             
             # Process delivery orders
-            for order in eligible_delivery_orders:
-                order.public_order = True
-                order.public_order_activated_at = current_time
+            for order in delivery_orders_to_make_public:
+                # Check if pending_time has expired
+                time_elapsed = (current_time - order.created_at).total_seconds()
                 
-                db.commit()
-                db.refresh(order)
-                
-                # Notify all drivers that order is now public
-                await manager.broadcast_to_all_drivers({
-                    "type": "order_public",
-                    "order_id": order.id,
-                    "order_type": "delivery",
-                    "message": "Order is now public and available to all drivers",
-                    "order": _serialize_pending_order_for_driver(order, "delivery")
-                })
-                
-                print(f"[TASK] Delivery order #{order.id} is now public (no acceptance within {timeout_seconds}s)")
+                if time_elapsed >= order.pending_time:
+                    # Make order public
+                    order.public_order = True
+                    db.commit()
+                    db.refresh(order)
+                    
+                    # Notify user
+                    create_notification(
+                        db=db,
+                        title="Order Now Public",
+                        message=f"Your delivery order #{order.id} is now visible to all drivers.",
+                        notification_type="order_public",
+                        user_id=order.user_id
+                    )
+                    
+                    # Broadcast to all drivers
+                    await manager.broadcast_to_all_drivers({
+                        "type": "order_now_public",
+                        "order_id": order.id,
+                        "order_type": "delivery",
+                        "order": _serialize_pending_order_for_driver(order, "delivery")
+                    })
+                    
+                    print(f"[TASK] Delivery order #{order.id} is now public after {order.pending_time} seconds")
             
             db.close()
             
         except Exception as e:
-            print(f"[TASK ERROR] Error checking public order timeout: {str(e)}")
+            print(f"[TASK ERROR] Error checking pending orders for public: {str(e)}")
             if 'db' in locals():
                 db.close()
         
-        # Check every 5 seconds for responsiveness
+        # Wait 5 seconds before next check
         await asyncio.sleep(5)
 
 
 def start_background_tasks():
     """Start all background tasks"""
     asyncio.create_task(check_unconfirmed_orders())
-    asyncio.create_task(check_public_order_timeout())
+    asyncio.create_task(check_pending_orders_for_public())
     print("[TASKS] Background tasks started")

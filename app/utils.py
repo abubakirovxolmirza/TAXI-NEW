@@ -566,3 +566,52 @@ def _publish_realtime_via_redis(
                 client.close()
             except Exception:
                 pass
+
+
+def calculate_and_apply_bonus(db: Session, order: Union["TaxiOrder", "DeliveryOrder"]) -> Optional[Decimal]:
+    """
+    Calculate bonus based on order price and active bonus percentage.
+    Add bonus to the bonus_user if specified.
+    
+    Returns: The bonus amount added (or None if no bonus_user_id)
+    """
+    from app.models import Bonus
+    
+    # Check if bonus_user_id is set
+    if not order.bonus_user_id:
+        return None
+    
+    # Get the active bonus configuration
+    bonus_config = db.query(Bonus).filter(Bonus.is_active == True).first()
+    
+    if not bonus_config:
+        # No active bonus configuration
+        return None
+    
+    # Get the bonus user
+    bonus_user = db.query(User).filter(User.id == order.bonus_user_id).first()
+    
+    if not bonus_user:
+        # Bonus user not found
+        return None
+    
+    # Calculate bonus amount
+    bonus_percent = bonus_config.bonus_percent
+    total_price = order.price
+    bonus_amount = _quantize_money((total_price * bonus_percent) / Decimal("100.00"))
+    
+    # Add bonus to user's bonus_ball
+    bonus_user.bonus_ball = _quantize_money(bonus_user.bonus_ball + bonus_amount)
+    
+    db.commit()
+    
+    # Create notification for bonus user
+    create_notification(
+        db=db,
+        title="Bonus Earned",
+        message=f"You earned {bonus_amount} bonus from order #{order.id}",
+        notification_type="bonus_earned",
+        user_id=bonus_user.id
+    )
+    
+    return bonus_amount

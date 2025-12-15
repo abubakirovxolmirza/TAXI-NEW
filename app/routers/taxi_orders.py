@@ -5,10 +5,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from app.database import get_db
 from app.models import User, TaxiOrder, OrderStatus, Driver, UserRole, SeatType
-from app.schemas import (
-    TaxiOrderCreate, TaxiOrderResponse, OrderCancellation, BulkDeleteRequest,
-    PendingTimeUpdate, OrderAcceptanceHistoryResponse
-)
+from app.schemas import TaxiOrderCreate, TaxiOrderResponse, OrderCancellation, BulkDeleteRequest
 from app.auth import get_current_user, get_optional_user
 from app.utils import (
     apply_service_fee_refund,
@@ -69,9 +66,17 @@ async def create_taxi_order(
     # Calculate service fee and driver earnings
     service_fee, driver_earnings = calculate_service_fee(price, db)
     
+    # Get default pending time from system settings (15 seconds by default)
+    from app.models import SystemSettings
+    pending_time_setting = db.query(SystemSettings).filter(
+        SystemSettings.setting_key == "public_order_pending_time"
+    ).first()
+    default_pending_time = int(pending_time_setting.setting_value) if pending_time_setting else 15
+    
     # Create order
     new_order = TaxiOrder(
         user_id=current_user.id,
+        bonus_user_id=order_data.bonus_user_id,
         username=order_data.username,
         telephone=order_data.telephone,
         from_region_id=order_data.from_region_id,
@@ -93,9 +98,9 @@ async def create_taxi_order(
         service_fee=service_fee,
         driver_earnings=driver_earnings,
         note=order_data.note,
-        bonus_user_id=order_data.bonus_user_id,
+        status=OrderStatus.PENDING,
         public_order=False,
-        status=OrderStatus.PENDING
+        pending_time=default_pending_time
     )
     
     db.add(new_order)
@@ -427,93 +432,5 @@ async def cancel_taxi_order(
         "driver_id": order.driver_id,
         "cancellation_reason": order.cancellation_reason,
     })
-    
-    return order
-
-
-@router.get("/public", response_model=List[TaxiOrderResponse])
-def get_public_taxi_orders(
-    limit: int = DEFAULT_PAGE_SIZE,
-    offset: int = 0,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get public taxi orders (available to all drivers)"""
-    # Only drivers can view public orders
-    if not current_user.driver_profile:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can view public orders"
-        )
-    
-    limit, offset = _normalize_pagination(limit, offset)
-    
-    orders = db.query(TaxiOrder).filter(
-        TaxiOrder.status == OrderStatus.PENDING,
-        TaxiOrder.public_order == True
-    ).order_by(TaxiOrder.created_at.desc()).offset(offset).limit(limit).all()
-    
-    return orders
-
-
-@router.put("/{order_id}/pending-time", response_model=TaxiOrderResponse)
-def update_taxi_order_pending_time(
-    order_id: int,
-    pending_time_update: PendingTimeUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Update pending_time for a taxi order (Admin/Superadmin only)"""
-    
-    if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can update pending time"
-        )
-    
-    order = db.query(TaxiOrder).filter(TaxiOrder.id == order_id).first()
-    
-    if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found"
-        )
-    
-    order.pending_time = pending_time_update.pending_time
-    
-    db.commit()
-    db.refresh(order)
-    
-    return order
-
-
-@router.get("/{order_id}/acceptance-history", response_model=List[OrderAcceptanceHistoryResponse])
-def get_taxi_order_acceptance_history(
-    order_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get acceptance history for a taxi order (Admin/Superadmin only)"""
-    from app.models import OrderAcceptanceHistory
-    
-    if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can view acceptance history"
-        )
-    
-    order = db.query(TaxiOrder).filter(TaxiOrder.id == order_id).first()
-    
-    if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found"
-        )
-    
-    history = db.query(OrderAcceptanceHistory).filter(
-        OrderAcceptanceHistory.taxi_order_id == order_id
-    ).order_by(OrderAcceptanceHistory.created_at.desc()).all()
-    
-    return history
     
     return order

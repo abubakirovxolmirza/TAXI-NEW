@@ -69,6 +69,7 @@ class UserResponse(UserBase):
     role: UserRole
     language: Language
     profile_picture: Optional[str]
+    bonus_ball: Decimal
     is_active: bool
     created_at: datetime
     
@@ -125,6 +126,7 @@ class RegionResponse(RegionBase):
 class TaxiOrderCreate(BaseModel):
     username: str
     telephone: str
+    bonus_user_id: Optional[int] = None  # Optional user to receive bonus
     from_region_id: int
     from_district_id: int
     to_region_id: int
@@ -141,7 +143,6 @@ class TaxiOrderCreate(BaseModel):
     time_end: str  # HH:MM
     scheduled_datetime: Optional[datetime] = None  # Scheduled pickup datetime (ISO format)
     note: Optional[str] = None
-    bonus_user_id: Optional[int] = None  # User to receive bonus (not required)
     
     @validator('to_region_id')
     def regions_must_differ(cls, v, values):
@@ -177,6 +178,7 @@ class TaxiOrderResponse(BaseModel):
     id: int
     user_id: int
     driver_id: Optional[int]
+    bonus_user_id: Optional[int]
     username: str
     telephone: str
     from_region_id: int
@@ -199,11 +201,9 @@ class TaxiOrderResponse(BaseModel):
     driver_earnings: Decimal
     note: Optional[str]
     status: OrderStatus
-    cancellation_reason: Optional[str]
-    pending_time: Optional[int]
-    bonus_user_id: Optional[int]
     public_order: bool
-    public_order_activated_at: Optional[datetime]
+    pending_time: Optional[int]
+    cancellation_reason: Optional[str]
     created_at: datetime
     accepted_at: Optional[datetime]
     confirmed_at: Optional[datetime]
@@ -219,6 +219,7 @@ class DeliveryOrderCreate(BaseModel):
     username: str
     sender_telephone: str
     receiver_telephone: str
+    bonus_user_id: Optional[int] = None  # Optional user to receive bonus
     from_region_id: int
     from_district_id: int
     to_region_id: int
@@ -235,7 +236,6 @@ class DeliveryOrderCreate(BaseModel):
     time_end: str  # HH:MM
     scheduled_datetime: Optional[datetime] = None  # Scheduled pickup datetime (ISO format)
     note: Optional[str] = None
-    bonus_user_id: Optional[int] = None  # User to receive bonus (not required)
 
 
 class DeliveryOrderUpdate(BaseModel):
@@ -266,6 +266,7 @@ class DeliveryOrderResponse(BaseModel):
     id: int
     user_id: int
     driver_id: Optional[int]
+    bonus_user_id: Optional[int]
     username: str
     sender_telephone: str
     receiver_telephone: str
@@ -289,11 +290,9 @@ class DeliveryOrderResponse(BaseModel):
     driver_earnings: Decimal
     note: Optional[str]
     status: OrderStatus
-    cancellation_reason: Optional[str]
-    pending_time: Optional[int]
-    bonus_user_id: Optional[int]
     public_order: bool
-    public_order_activated_at: Optional[datetime]
+    pending_time: Optional[int]
+    cancellation_reason: Optional[str]
     created_at: datetime
     accepted_at: Optional[datetime]
     confirmed_at: Optional[datetime]
@@ -608,6 +607,7 @@ class SystemSettingResponse(BaseModel):
 class BonusCreate(BaseModel):
     bonus_percent: Decimal = Field(..., ge=0, le=100, description="Bonus percentage (0-100)")
     description: Optional[str] = None
+    is_active: bool = True
     
     @validator('bonus_percent')
     def validate_percentage(cls, v):
@@ -617,15 +617,9 @@ class BonusCreate(BaseModel):
 
 
 class BonusUpdate(BaseModel):
-    bonus_percent: Optional[Decimal] = Field(None, ge=0, le=100, description="Bonus percentage (0-100)")
+    bonus_percent: Optional[Decimal] = Field(None, ge=0, le=100)
     description: Optional[str] = None
     is_active: Optional[bool] = None
-    
-    @validator('bonus_percent')
-    def validate_percentage(cls, v):
-        if v is not None and (v < 0 or v > 100):
-            raise ValueError('Bonus percentage must be between 0 and 100')
-        return v
 
 
 class BonusResponse(BaseModel):
@@ -646,27 +640,9 @@ class OrderAcceptanceHistoryResponse(BaseModel):
     driver_id: int
     taxi_order_id: Optional[int]
     delivery_order_id: Optional[int]
+    received_at: datetime
     action: str
     created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
-# Public Order Settings Schema
-class PublicOrderSettingsUpdate(BaseModel):
-    public_order_timeout: int = Field(..., ge=1, description="Timeout in seconds before order becomes public")
-    
-    @validator('public_order_timeout')
-    def validate_timeout(cls, v):
-        if v < 1:
-            raise ValueError('Timeout must be at least 1 second')
-        return v
-
-
-class PublicOrderSettingsResponse(BaseModel):
-    public_order_timeout: int
-    updated_at: Optional[datetime]
     
     class Config:
         from_attributes = True
@@ -675,9 +651,14 @@ class PublicOrderSettingsResponse(BaseModel):
 # Pending Time Update Schema
 class PendingTimeUpdate(BaseModel):
     pending_time: int = Field(..., ge=0, description="Pending time in seconds")
-    
-    @validator('pending_time')
-    def validate_pending_time(cls, v):
-        if v < 0:
-            raise ValueError('Pending time cannot be negative')
-        return v
+
+
+# Public Order Response (extended from regular order response)
+class PublicTaxiOrderResponse(TaxiOrderResponse):
+    public_order: bool
+    pending_time: Optional[int]
+
+
+class PublicDeliveryOrderResponse(DeliveryOrderResponse):
+    public_order: bool
+    pending_time: Optional[int]

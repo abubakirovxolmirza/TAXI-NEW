@@ -61,8 +61,8 @@ class User(Base):
     language = Column(SQLEnum(Language, values_callable=lambda obj: [e.value for e in obj]), default=Language.UZ_LATIN, nullable=False)
     profile_picture = Column(String(255), nullable=True)
     telegram_chat_id = Column(String(50), nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
     bonus_ball = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # Bonus balance
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -155,6 +155,7 @@ class TaxiOrder(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
+    bonus_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Optional user to receive bonus
     username = Column(String(100), nullable=False)
     telephone = Column(String(20), nullable=False)
     from_region_id = Column(Integer, ForeignKey("regions.id"), nullable=False)
@@ -177,11 +178,9 @@ class TaxiOrder(Base):
     driver_earnings = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # Driver's portion after fee
     note = Column(Text, nullable=True)
     status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
+    public_order = Column(Boolean, default=False, nullable=False)  # If true, order is visible to all drivers
+    pending_time = Column(Integer, nullable=True)  # Time in seconds before order becomes public
     cancellation_reason = Column(Text, nullable=True)
-    pending_time = Column(Integer, nullable=True)  # Time in seconds for pending state
-    bonus_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User to receive bonus
-    public_order = Column(Boolean, default=False, nullable=False)  # Whether order is public to all drivers
-    public_order_activated_at = Column(DateTime(timezone=True), nullable=True)  # When order became public
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     confirmed_at = Column(DateTime(timezone=True), nullable=True)  # When driver confirms after accepting
     is_confirmed = Column(Boolean, default=False, nullable=False)  # Whether driver confirmed the order
@@ -199,7 +198,6 @@ class TaxiOrder(Base):
     to_region = relationship("Region", foreign_keys=[to_region_id])
     to_district = relationship("District", foreign_keys=[to_district_id])
     rating = relationship("Rating", back_populates="taxi_order", uselist=False)
-    acceptance_history = relationship("OrderAcceptanceHistory", back_populates="taxi_order", foreign_keys="OrderAcceptanceHistory.taxi_order_id")
 
 
 class DeliveryOrder(Base):
@@ -208,6 +206,7 @@ class DeliveryOrder(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
+    bonus_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Optional user to receive bonus
     username = Column(String(100), nullable=False)
     sender_telephone = Column(String(20), nullable=False)
     receiver_telephone = Column(String(20), nullable=False)
@@ -231,11 +230,9 @@ class DeliveryOrder(Base):
     driver_earnings = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)  # Driver's portion after fee
     note = Column(Text, nullable=True)
     status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
+    public_order = Column(Boolean, default=False, nullable=False)  # If true, order is visible to all drivers
+    pending_time = Column(Integer, nullable=True)  # Time in seconds before order becomes public
     cancellation_reason = Column(Text, nullable=True)
-    pending_time = Column(Integer, nullable=True)  # Time in seconds for pending state
-    bonus_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User to receive bonus
-    public_order = Column(Boolean, default=False, nullable=False)  # Whether order is public to all drivers
-    public_order_activated_at = Column(DateTime(timezone=True), nullable=True)  # When order became public
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     confirmed_at = Column(DateTime(timezone=True), nullable=True)  # When driver confirms after accepting
     is_confirmed = Column(Boolean, default=False, nullable=False)  # Whether driver confirmed the order
@@ -253,7 +250,6 @@ class DeliveryOrder(Base):
     to_region = relationship("Region", foreign_keys=[to_region_id])
     to_district = relationship("District", foreign_keys=[to_district_id])
     rating = relationship("Rating", back_populates="delivery_order", uselist=False)
-    acceptance_history = relationship("OrderAcceptanceHistory", back_populates="delivery_order", foreign_keys="OrderAcceptanceHistory.delivery_order_id")
 
 
 class Rating(Base):
@@ -384,28 +380,31 @@ class SystemSettings(Base):
     admin = relationship("User", foreign_keys=[updated_by])
 
 
-class Bonus(Base):
-    __tablename__ = "bonus"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    bonus_percent = Column(Numeric(5, 2), nullable=False)  # Percentage for bonus calculation (e.g., 5.00 for 5%)
-    description = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-
 class OrderAcceptanceHistory(Base):
+    """Track which drivers received but did not accept an order"""
     __tablename__ = "order_acceptance_history"
     
     id = Column(Integer, primary_key=True, index=True)
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
     taxi_order_id = Column(Integer, ForeignKey("taxi_orders.id"), nullable=True)
     delivery_order_id = Column(Integer, ForeignKey("delivery_orders.id"), nullable=True)
-    action = Column(String(50), nullable=False)  # "received_pending", "not_accepted", "accepted"
+    received_at = Column(DateTime(timezone=True), server_default=func.now())
+    action = Column(String(20), nullable=False)  # "received", "ignored", "declined"
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
     driver = relationship("Driver", foreign_keys=[driver_id])
-    taxi_order = relationship("TaxiOrder", back_populates="acceptance_history", foreign_keys=[taxi_order_id])
-    delivery_order = relationship("DeliveryOrder", back_populates="acceptance_history", foreign_keys=[delivery_order_id])
+    taxi_order = relationship("TaxiOrder", foreign_keys=[taxi_order_id])
+    delivery_order = relationship("DeliveryOrder", foreign_keys=[delivery_order_id])
+
+
+class Bonus(Base):
+    """Bonus configuration model with percentage for bonus calculations"""
+    __tablename__ = "bonuses"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    bonus_percent = Column(Numeric(5, 2), nullable=False, default=Decimal("5.00"))  # percentage
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

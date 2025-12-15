@@ -26,8 +26,7 @@ from app.schemas import (
     DriverResponse, PricingCreate, PricingUpdate, PricingResponse,
     BalanceAdd, BalanceTransactionResponse, BroadcastMessage,
     FeedbackResponse, UserResponse, UserRoleUpdate,
-    ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse,
-    PublicOrderSettingsUpdate, PublicOrderSettingsResponse
+    ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse
 )
 from app.auth import get_current_admin, get_current_superadmin
 from app.utils import (
@@ -966,64 +965,3 @@ def get_all_settings(
     """Get all system settings"""
     settings = db.query(SystemSettings).all()
     return settings
-
-
-@router.get("/settings/public-order-timeout", response_model=PublicOrderSettingsResponse)
-def get_public_order_timeout(
-    current_user: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """Get public order timeout setting"""
-    
-    setting = db.query(SystemSettings).filter(
-        SystemSettings.setting_key == "public_order_timeout"
-    ).first()
-    
-    # Default to 15 seconds if not set
-    timeout = 15
-    if setting:
-        try:
-            timeout = int(setting.setting_value)
-        except (ValueError, TypeError):
-            pass
-    
-    return {
-        "public_order_timeout": timeout,
-        "updated_at": setting.updated_at if setting else None
-    }
-
-
-@router.put("/settings/public-order-timeout", response_model=PublicOrderSettingsResponse)
-def update_public_order_timeout(
-    timeout_data: PublicOrderSettingsUpdate,
-    current_user: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """Update public order timeout setting"""
-    
-    setting = db.query(SystemSettings).filter(
-        SystemSettings.setting_key == "public_order_timeout"
-    ).first()
-    
-    if setting:
-        # Update existing setting
-        setting.setting_value = str(timeout_data.public_order_timeout)
-        setting.updated_by = current_user.id
-        setting.updated_at = datetime.now(timezone.utc)
-    else:
-        # Create new setting
-        setting = SystemSettings(
-            setting_key="public_order_timeout",
-            setting_value=str(timeout_data.public_order_timeout),
-            description="Timeout in seconds before order becomes public to all drivers",
-            updated_by=current_user.id
-        )
-        db.add(setting)
-    
-    db.commit()
-    db.refresh(setting)
-    
-    return {
-        "public_order_timeout": int(setting.setting_value),
-        "updated_at": setting.updated_at
-    }
