@@ -5,7 +5,10 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from app.database import get_db
 from app.models import User, TaxiOrder, OrderStatus, Driver, UserRole, SeatType
-from app.schemas import TaxiOrderCreate, TaxiOrderResponse, OrderCancellation, BulkDeleteRequest
+from app.schemas import (
+    TaxiOrderCreate, TaxiOrderResponse, OrderCancellation, BulkDeleteRequest,
+    PendingTimeUpdate, OrderAcceptanceHistoryResponse
+)
 from app.auth import get_current_user, get_optional_user
 from app.utils import (
     apply_service_fee_refund,
@@ -456,12 +459,11 @@ def get_public_taxi_orders(
 @router.put("/{order_id}/pending-time", response_model=TaxiOrderResponse)
 def update_taxi_order_pending_time(
     order_id: int,
-    pending_time_update: "PendingTimeUpdate",
+    pending_time_update: PendingTimeUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update pending_time for a taxi order (Admin/Superadmin only)"""
-    from app.schemas import PendingTimeUpdate
     
     if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
         raise HTTPException(
@@ -485,7 +487,7 @@ def update_taxi_order_pending_time(
     return order
 
 
-@router.get("/{order_id}/acceptance-history", response_model=List["OrderAcceptanceHistoryResponse"])
+@router.get("/{order_id}/acceptance-history", response_model=List[OrderAcceptanceHistoryResponse])
 def get_taxi_order_acceptance_history(
     order_id: int,
     current_user: User = Depends(get_current_user),
@@ -493,7 +495,6 @@ def get_taxi_order_acceptance_history(
 ):
     """Get acceptance history for a taxi order (Admin/Superadmin only)"""
     from app.models import OrderAcceptanceHistory
-    from app.schemas import OrderAcceptanceHistoryResponse
     
     if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
         raise HTTPException(

@@ -26,7 +26,8 @@ from app.schemas import (
     DriverResponse, PricingCreate, PricingUpdate, PricingResponse,
     BalanceAdd, BalanceTransactionResponse, BroadcastMessage,
     FeedbackResponse, UserResponse, UserRoleUpdate,
-    ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse
+    ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse,
+    PublicOrderSettingsUpdate, PublicOrderSettingsResponse
 )
 from app.auth import get_current_admin, get_current_superadmin
 from app.utils import (
@@ -967,13 +968,12 @@ def get_all_settings(
     return settings
 
 
-@router.get("/settings/public-order-timeout", response_model="PublicOrderSettingsResponse")
+@router.get("/settings/public-order-timeout", response_model=PublicOrderSettingsResponse)
 def get_public_order_timeout(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """Get public order timeout setting"""
-    from app.schemas import PublicOrderSettingsResponse
     
     setting = db.query(SystemSettings).filter(
         SystemSettings.setting_key == "public_order_timeout"
@@ -993,14 +993,13 @@ def get_public_order_timeout(
     }
 
 
-@router.put("/settings/public-order-timeout", response_model="PublicOrderSettingsResponse")
+@router.put("/settings/public-order-timeout", response_model=PublicOrderSettingsResponse)
 def update_public_order_timeout(
-    timeout_data: "PublicOrderSettingsUpdate",
+    timeout_data: PublicOrderSettingsUpdate,
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """Update public order timeout setting"""
-    from app.schemas import PublicOrderSettingsUpdate, PublicOrderSettingsResponse
     
     setting = db.query(SystemSettings).filter(
         SystemSettings.setting_key == "public_order_timeout"

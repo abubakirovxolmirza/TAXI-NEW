@@ -4,7 +4,10 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from app.database import get_db
 from app.models import User, DeliveryOrder, OrderStatus, Driver, UserRole
-from app.schemas import DeliveryOrderCreate, DeliveryOrderResponse, OrderCancellation, BulkDeleteRequest
+from app.schemas import (
+    DeliveryOrderCreate, DeliveryOrderResponse, OrderCancellation, BulkDeleteRequest,
+    PendingTimeUpdate, OrderAcceptanceHistoryResponse
+)
 from app.auth import get_current_user, get_optional_user
 from app.utils import (
     apply_service_fee_refund,
@@ -442,12 +445,11 @@ def get_public_delivery_orders(
 @router.put("/{order_id}/pending-time", response_model=DeliveryOrderResponse)
 def update_delivery_order_pending_time(
     order_id: int,
-    pending_time_update: "PendingTimeUpdate",
+    pending_time_update: PendingTimeUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update pending_time for a delivery order (Admin/Superadmin only)"""
-    from app.schemas import PendingTimeUpdate
     
     if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
         raise HTTPException(
@@ -471,7 +473,7 @@ def update_delivery_order_pending_time(
     return order
 
 
-@router.get("/{order_id}/acceptance-history", response_model=List["OrderAcceptanceHistoryResponse"])
+@router.get("/{order_id}/acceptance-history", response_model=List[OrderAcceptanceHistoryResponse])
 def get_delivery_order_acceptance_history(
     order_id: int,
     current_user: User = Depends(get_current_user),
@@ -479,7 +481,6 @@ def get_delivery_order_acceptance_history(
 ):
     """Get acceptance history for a delivery order (Admin/Superadmin only)"""
     from app.models import OrderAcceptanceHistory
-    from app.schemas import OrderAcceptanceHistoryResponse
     
     if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
         raise HTTPException(
