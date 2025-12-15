@@ -10,14 +10,15 @@ print("VERIFICATION SCRIPT - New Features Implementation")
 print("=" * 60)
 
 # Test 1: Check Gender Enum
-print("\n✓ TEST 1: Gender Enum (male/female only)")
+print("\n✓ TEST 1: Gender Enum (male/female/both)")
 try:
     from app.models import Gender
     gender_values = [g.value for g in Gender]
     assert "male" in gender_values, "❌ 'male' not in Gender enum"
     assert "female" in gender_values, "❌ 'female' not in Gender enum"
+    assert "both" in gender_values, "❌ 'both' not in Gender enum"
     assert "other" not in gender_values, "❌ 'other' should not be in Gender enum"
-    assert len(gender_values) == 2, f"❌ Gender enum should have 2 values, has {len(gender_values)}"
+    assert len(gender_values) == 3, f"❌ Gender enum should have 3 values, has {len(gender_values)}"
     print(f"  ✅ Gender enum: {gender_values}")
 except Exception as e:
     print(f"  ❌ FAILED: {e}")
@@ -175,7 +176,7 @@ print("✅ ALL VERIFICATION TESTS PASSED!")
 print("=" * 60)
 print("\nAll 5 requirements are properly implemented:")
 print("1. ✅ Order Acceptance History - OrderAcceptanceHistory model + router")
-print("2. ✅ Gender Enum - Only 'male' and 'female' (no 'other')")
+print("2. ✅ Gender Enum - 'male', 'female', and 'both' (no 'other')")
 print("3. ✅ Pending Time CRUD - Full CRUD via /api/pending-time endpoints")
 print("4. ✅ Bonus System - Bonus model, bonus_ball, bonus_user_id, calculation logic")
 print("5. ✅ Public Orders - public_order flag, timer logic, separate endpoints")

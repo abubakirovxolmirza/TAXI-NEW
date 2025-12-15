@@ -1,0 +1,32 @@
+# Quick commands to run on server
+# Copy and paste these commands in your SSH session
+
+# 1. Quick diagnosis
+cd /var/www/taxi-service/TAXI-NEW && bash quick_diagnose.sh
+
+# 2. Full server test (without migration)
+cd /var/www/taxi-service/TAXI-NEW && source venv/bin/activate && python verify_implementation.py
+
+# 3. Check service logs for errors
+journalctl -u taxi-service -n 50 --no-pager | grep -i "error\|exception"
+
+# 4. Test imports manually
+cd /var/www/taxi-service/TAXI-NEW && source venv/bin/activate && python -c "from app.models import Gender, Bonus, OrderAcceptanceHistory; from app.routers import bonus, order_history, pending_time, public_orders; print('✅ All imports OK')"
+
+# 5. Check database migration status
+cd /var/www/taxi-service/TAXI-NEW && source venv/bin/activate && alembic current
+
+# 6. Run migration (CAREFUL - this modifies database)
+cd /var/www/taxi-service/TAXI-NEW && source venv/bin/activate && alembic upgrade head
+
+# 7. Restart service
+systemctl restart taxi-service && systemctl status taxi-service
+
+# 8. View live logs
+journalctl -u taxi-service -f
+
+# 9. Check API health
+curl http://localhost:8000/health
+
+# 10. Pull latest changes from Git
+cd /var/www/taxi-service/TAXI-NEW && git pull

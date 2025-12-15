@@ -22,6 +22,7 @@ class Language(str, enum.Enum):
 class Gender(str, enum.Enum):
     MALE = "male"
     FEMALE = "female"
+    BOTH = "both"  # Female and male
 
 
 class OrderStatus(str, enum.Enum):
