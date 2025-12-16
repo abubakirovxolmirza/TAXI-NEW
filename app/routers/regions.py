@@ -1,3 +1,4 @@
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -135,18 +136,20 @@ def calculate_price(
     if service_type == "taxi":
         total_passengers = passengers if passengers and passengers > 0 else 1
         if total_passengers == 1:
-            discount = pricing.discount_1_passenger or 0
+            discount = pricing.discount_1_passenger or Decimal("0")
         elif total_passengers == 2:
-            discount = pricing.discount_2_passengers or 0
+            discount = pricing.discount_2_passengers or Decimal("0")
         elif total_passengers == 3:
-            discount = pricing.discount_3_passengers or 0
+            discount = pricing.discount_3_passengers or Decimal("0")
         elif total_passengers == 4:
-            discount = pricing.discount_full_car or 0
+            discount = pricing.discount_full_car or Decimal("0")
         else:
-            discount = 0
+            discount = Decimal("0")
+        
+        discount_multiplier = Decimal("1") - (Decimal(discount) / Decimal("100"))
         
         # Calculate price per person after discount
-        price_per_person = base_price * (1 - discount / 100)
+        price_per_person = base_price * discount_multiplier
         # Total price for all passengers
         total_price = price_per_person * total_passengers
         
