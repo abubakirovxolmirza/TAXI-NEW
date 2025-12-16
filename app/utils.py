@@ -15,6 +15,7 @@ from app.models import (
     Driver,
     Language,
     Notification,
+    OrderAcceptanceHistory,
     Pricing,
     SystemSettings,
     User,
@@ -199,6 +200,48 @@ def calculate_delivery_price(
         return _quantize_money(Decimal("30000.00"))
 
     return _quantize_money(pricing.base_price or Decimal("0.00"))
+
+
+def record_order_acceptance_history(
+    db: Session,
+    driver_id: Optional[int],
+    order_type: str,
+    order_id: int,
+    action: str,
+):
+    """
+    Persist an acceptance history entry for either taxi or delivery orders.
+    The caller is responsible for committing the session.
+    """
+    if not driver_id or not action or order_type not in {"taxi", "delivery"}:
+        return None
+
+    history = OrderAcceptanceHistory(
+        driver_id=driver_id,
+        taxi_order_id=order_id if order_type == "taxi" else None,
+        delivery_order_id=order_id if order_type == "delivery" else None,
+        action=action,
+        received_at=datetime.now(timezone.utc),
+    )
+    db.add(history)
+    return history
+
+
+def get_last_history_driver_id(db: Session, order_type: str, order_id: int) -> Optional[int]:
+    """Return the latest driver_id that interacted with this order in history."""
+    if order_type not in {"taxi", "delivery"}:
+        return None
+
+    query = db.query(OrderAcceptanceHistory.driver_id)
+    if order_type == "taxi":
+        query = query.filter(OrderAcceptanceHistory.taxi_order_id == order_id)
+    else:
+        query = query.filter(OrderAcceptanceHistory.delivery_order_id == order_id)
+
+    latest = query.order_by(OrderAcceptanceHistory.created_at.desc()).first()
+    if not latest:
+        return None
+    return latest.driver_id
 
 
 def update_driver_rating(db: Session, driver_id: int):

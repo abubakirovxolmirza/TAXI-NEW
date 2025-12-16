@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
-from app.models import Region, District, Pricing, DistrictPricing, User
+from app.models import Region, District, Pricing, DistrictPricing, SeatType, User
 from app.schemas import (
     RegionResponse, RegionCreate, DistrictResponse, DistrictCreate, PricingResponse,
     RegionCreateWithPricing, DistrictCreateWithPricing,
@@ -64,6 +64,7 @@ def calculate_price(
     to_region_id: int,
     service_type: str,
     passengers: Optional[int] = None,
+    seat_type: Optional[str] = None,
     from_district_id: Optional[int] = None,
     to_district_id: Optional[int] = None,
     db: Session = Depends(get_db)
@@ -107,24 +108,47 @@ def calculate_price(
         )
     
     base_price = pricing.base_price
+    selected_seat: Optional[SeatType] = None
+    
+    # Resolve seat type for taxi pricing
+    if service_type == "taxi":
+        total_passengers = passengers if passengers and passengers > 0 else 1
+        if seat_type:
+            try:
+                selected_seat = SeatType(seat_type.lower())
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid seat_type. Must be 'front' or 'back'"
+                )
+        else:
+            # Default to back seat when more than one passenger
+            selected_seat = SeatType.FRONT if total_passengers == 1 else SeatType.BACK
+        
+        # Apply seat-specific pricing when available
+        if selected_seat == SeatType.FRONT and pricing.front_seat_price:
+            base_price = pricing.front_seat_price
+        elif selected_seat == SeatType.BACK and pricing.back_seat_price:
+            base_price = pricing.back_seat_price
     
     # Apply discount for taxi service based on passengers
-    if service_type == "taxi" and passengers:
-        if passengers == 1:
-            discount = pricing.discount_1_passenger
-        elif passengers == 2:
-            discount = pricing.discount_2_passengers
-        elif passengers == 3:
-            discount = pricing.discount_3_passengers
-        elif passengers == 4:
-            discount = pricing.discount_full_car
+    if service_type == "taxi":
+        total_passengers = passengers if passengers and passengers > 0 else 1
+        if total_passengers == 1:
+            discount = pricing.discount_1_passenger or 0
+        elif total_passengers == 2:
+            discount = pricing.discount_2_passengers or 0
+        elif total_passengers == 3:
+            discount = pricing.discount_3_passengers or 0
+        elif total_passengers == 4:
+            discount = pricing.discount_full_car or 0
         else:
             discount = 0
         
         # Calculate price per person after discount
         price_per_person = base_price * (1 - discount / 100)
         # Total price for all passengers
-        total_price = price_per_person * passengers
+        total_price = price_per_person * total_passengers
         
         return {
             "pricing_level": pricing_level,
@@ -134,10 +158,11 @@ def calculate_price(
             "to_district_id": to_district_id,
             "service_type": service_type,
             "base_price": str(base_price),
-            "passengers": passengers,
+            "passengers": total_passengers,
             "discount_percentage": str(discount),
             "price_per_person": str(price_per_person),
-            "total_price": str(total_price)
+            "total_price": str(total_price),
+            "seat_type": selected_seat.value if selected_seat else None
         }
     else:
         # For delivery, no passenger count
@@ -150,5 +175,6 @@ def calculate_price(
             "service_type": service_type,
             "base_price": str(base_price),
             "passengers": passengers,
+            "seat_type": selected_seat.value if selected_seat else None,
             "total_price": str(base_price)
         }

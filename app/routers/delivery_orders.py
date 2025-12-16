@@ -11,7 +11,9 @@ from app.utils import (
     calculate_delivery_price,
     create_notification,
     calculate_service_fee,
+    get_last_history_driver_id,
     get_or_create_guest_user,
+    record_order_acceptance_history,
 )
 from app.websocket import manager
 
@@ -368,12 +370,34 @@ async def cancel_delivery_order(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only pending or accepted orders can be cancelled"
         )
+
+    previous_status = order.status
+    previous_driver_id = order.driver_id
+    history_driver_id = previous_driver_id or get_last_history_driver_id(db, "delivery", order.id)
     
     # Update order status
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation.cancellation_reason
     order.cancelled_at = datetime.now(timezone.utc)
     refund_result = apply_service_fee_refund(db, order, "delivery")
+
+    if history_driver_id:
+        if previous_status == OrderStatus.ACCEPTED:
+            record_order_acceptance_history(
+                db=db,
+                driver_id=history_driver_id,
+                order_type="delivery",
+                order_id=order.id,
+                action="cancelled_after_accept",
+            )
+        elif previous_status == OrderStatus.PENDING:
+            record_order_acceptance_history(
+                db=db,
+                driver_id=history_driver_id,
+                order_type="delivery",
+                order_id=order.id,
+                action="cancelled_from_pending",
+            )
     
     db.commit()
     db.refresh(order)

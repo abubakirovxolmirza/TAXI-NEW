@@ -34,6 +34,7 @@ from app.utils import (
     apply_service_fee_charge,
     check_driver_can_accept_order,
     create_notification,
+    record_order_acceptance_history,
 )
 from app.websocket import manager
 
@@ -1349,6 +1350,14 @@ async def accept_order(
     order.status = OrderStatus.ACCEPTED
     order.accepted_at = datetime.now(timezone.utc)
     order.is_confirmed = False  # Not confirmed yet
+
+    record_order_acceptance_history(
+        db=db,
+        driver_id=driver.id,
+        order_type=order_type,
+        order_id=order.id,
+        action="accepted",
+    )
     
     db.commit()
     db.refresh(order)
@@ -1688,11 +1697,21 @@ async def reject_order(
             detail="Confirmed orders cannot be rejected. Please complete the order."
         )
     
+    previous_driver_id = order.driver_id
+
     # Return order to pending state
     order.driver_id = None
     order.status = OrderStatus.PENDING
     order.accepted_at = None
     order.is_confirmed = False
+
+    record_order_acceptance_history(
+        db=db,
+        driver_id=previous_driver_id,
+        order_type=order_type,
+        order_id=order.id,
+        action="returned_to_pending",
+    )
     
     db.commit()
     db.refresh(order)
