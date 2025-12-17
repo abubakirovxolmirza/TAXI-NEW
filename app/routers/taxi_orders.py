@@ -30,6 +30,8 @@ def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[
 router = APIRouter(prefix="/api/taxi-orders", tags=["Taxi Orders"])
 
 
+# Allow both `/api/taxi-orders/` and `/api/taxi-orders` without redirect.
+@router.post("", response_model=TaxiOrderResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=TaxiOrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_taxi_order(
     order_data: TaxiOrderCreate,
