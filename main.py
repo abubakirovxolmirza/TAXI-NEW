@@ -35,9 +35,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
-cors_origins = settings.CORS_ORIGINS or ["http://localhost:3000"]
-cors_regex = settings.CORS_ALLOW_ORIGIN_REGEX
+# CORS middleware (hard-coded to production domains to rule out env issues)
+cors_origins = [
+    "https://adm-93kxq2.omad-driver.uz",
+    "https://omad-driver.uz",
+    "http://localhost:3000",
+]
+cors_regex = None
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -85,3 +89,4 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=settings.DEBUG)
+
