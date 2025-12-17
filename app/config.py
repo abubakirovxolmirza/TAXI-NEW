@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     
     # CORS
     CORS_ORIGINS: List[str] = []
+    CORS_ALLOW_ORIGIN_REGEX: Optional[str] = None
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
