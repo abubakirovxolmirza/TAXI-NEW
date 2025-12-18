@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
 from typing import List, Optional
 from datetime import datetime, date, timezone
@@ -26,6 +26,7 @@ from app.schemas import (
     DriverResponse, PricingCreate, PricingUpdate, PricingResponse,
     BalanceAdd, BalanceTransactionResponse, BroadcastMessage,
     FeedbackResponse, UserResponse, UserRoleUpdate,
+    BonusBallUpdate, BonusBallUserResponse,
     ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse
 )
 from app.auth import get_current_admin, get_current_superadmin
@@ -184,6 +185,46 @@ def get_all_users(
     """Get all users"""
     users = db.query(User).order_by(User.created_at.desc()).all()
     return users
+
+
+@router.get("/users/bonus-ball", response_model=List[BonusBallUserResponse])
+def get_all_bonus_ball(
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get bonus balances for all users (with driver info when available)"""
+    users = (
+        db.query(User)
+        .options(joinedload(User.driver_profile))
+        .order_by(User.created_at.desc())
+        .all()
+    )
+    return users
+
+
+@router.put("/users/{user_id}/bonus-ball", response_model=BonusBallUserResponse)
+def update_bonus_ball(
+    user_id: int,
+    bonus_data: BonusBallUpdate,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update a user's bonus balance"""
+    user = (
+        db.query(User)
+        .options(joinedload(User.driver_profile))
+        .filter(User.id == user_id)
+        .first()
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    user.bonus_ball = bonus_data.bonus_ball
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 @router.get("/drivers", response_model=List[DriverResponse])

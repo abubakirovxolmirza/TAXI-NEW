@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     USER_BOT_TOKEN: str
     ADMIN_BOT_TOKEN: str
     TELEGRAM_ADMIN_CHAT_ID: str
+    TELEGRAM_ORDER_BOT_TOKEN: Optional[str] = None
+    TELEGRAM_ORDER_CHANNEL_ID: Optional[str] = None
     
     # File Upload
     UPLOAD_DIR: str = os.path.join(os.getcwd(), "uploads")

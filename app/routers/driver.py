@@ -35,6 +35,7 @@ from app.utils import (
     check_driver_can_accept_order,
     create_notification,
     record_order_acceptance_history,
+    update_order_telegram_message,
 )
 from app.websocket import manager
 
@@ -1393,6 +1394,17 @@ async def accept_order(
     )
 
     await _push_passenger_active_orders_snapshot(order.user_id, db)
+
+    telegram_message_id = await update_order_telegram_message(
+        db=db,
+        order=order,
+        order_type=order_type,
+        status_label="Qabul qilindi",
+        driver=driver,
+    )
+    if telegram_message_id and telegram_message_id != order.telegram_message_id:
+        order.telegram_message_id = telegram_message_id
+        db.commit()
     
     return {
         "success": True,

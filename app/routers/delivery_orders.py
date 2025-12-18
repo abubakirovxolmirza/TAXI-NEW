@@ -14,6 +14,7 @@ from app.utils import (
     get_last_history_driver_id,
     get_or_create_guest_user,
     record_order_acceptance_history,
+    send_order_telegram_message,
 )
 from app.websocket import manager
 
@@ -96,6 +97,17 @@ async def create_delivery_order(
     db.add(new_order)
     db.commit()
     db.refresh(new_order)
+
+    telegram_message_id = await send_order_telegram_message(
+        db=db,
+        order=new_order,
+        order_type="delivery",
+        status_label="Kutilmoqda",
+    )
+    if telegram_message_id:
+        new_order.telegram_message_id = telegram_message_id
+        db.commit()
+        db.refresh(new_order)
     
     # Notify order owner only
     create_notification(

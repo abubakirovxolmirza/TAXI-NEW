@@ -1,5 +1,7 @@
 import asyncio
 import json
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Tuple, Union, TYPE_CHECKING
@@ -13,10 +15,12 @@ from app.config import settings
 from app.models import (
     BalanceTransaction,
     Driver,
+    District,
     Language,
     Notification,
     OrderAcceptanceHistory,
     Pricing,
+    Region,
     SystemSettings,
     User,
     UserRole,
@@ -658,3 +662,155 @@ def calculate_and_apply_bonus(db: Session, order: Union["TaxiOrder", "DeliveryOr
     )
     
     return bonus_amount
+
+
+def _telegram_enabled() -> bool:
+    return bool(settings.TELEGRAM_ORDER_BOT_TOKEN and settings.TELEGRAM_ORDER_CHANNEL_ID)
+
+
+def _telegram_api_request(method: str, payload: dict) -> Optional[dict]:
+    if not _telegram_enabled():
+        return None
+    token = settings.TELEGRAM_ORDER_BOT_TOKEN
+    url = f"https://api.telegram.org/bot{token}/{method}"
+    data = urllib.parse.urlencode(payload).encode("utf-8")
+    request = urllib.request.Request(url, data=data)
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            content = response.read().decode("utf-8")
+            return json.loads(content)
+    except Exception as exc:
+        print(f"Telegram API error: {exc}")
+        return None
+
+
+def _resolve_region_name(db: Session, region_id: Optional[int]) -> str:
+    if not region_id:
+        return "-"
+    region = db.query(Region).filter(Region.id == region_id).first()
+    if not region:
+        return str(region_id)
+    return region.name_uz_latin or str(region_id)
+
+
+def _resolve_district_name(db: Session, district_id: Optional[int]) -> str:
+    if not district_id:
+        return "-"
+    district = db.query(District).filter(District.id == district_id).first()
+    if not district:
+        return str(district_id)
+    return district.name_uz_latin or str(district_id)
+
+
+def _build_order_telegram_message(
+    db: Session,
+    order: Union["TaxiOrder", "DeliveryOrder"],
+    order_type: str,
+    status_label: str,
+    driver: Optional[Driver] = None,
+) -> str:
+    from_region = _resolve_region_name(db, order.from_region_id)
+    to_region = _resolve_region_name(db, order.to_region_id)
+    from_district = _resolve_district_name(db, order.from_district_id)
+    to_district = _resolve_district_name(db, order.to_district_id)
+    schedule = order.scheduled_datetime.isoformat() if order.scheduled_datetime else None
+    lines = []
+    if order_type == "taxi":
+        lines.extend(
+            [
+                "Taksi buyurtma",
+                f"ID: {order.id}",
+                f"Holat: {status_label}",
+                f"Mijoz: {order.username} ({order.telephone})",
+                f"Yo'nalish: {from_region} / {from_district} -> {to_region} / {to_district}",
+                f"Manzil: {order.pickup_address or '-'}",
+                f"Yo'lovchilar: {order.passengers}",
+                f"Vaqt: {order.date} {order.time_start}-{order.time_end}",
+            ]
+        )
+    else:
+        item_type = getattr(order.item_type, "value", order.item_type)
+        lines.extend(
+            [
+                "Yetkazib berish buyurtma",
+                f"ID: {order.id}",
+                f"Holat: {status_label}",
+                f"Jo'natuvchi: {order.username} ({order.sender_telephone})",
+                f"Qabul qiluvchi tel: {order.receiver_telephone}",
+                f"Yo'nalish: {from_region} / {from_district} -> {to_region} / {to_district}",
+                f"Olish manzili: {order.pickup_address or '-'}",
+                f"Yetkazish manzili: {order.dropoff_address or '-'}",
+                f"Yuk turi: {item_type}",
+                f"Vaqt: {order.date} {order.time_start}-{order.time_end}",
+            ]
+        )
+    if schedule:
+        lines.append(f"Reja vaqt: {schedule}")
+    lines.append(f"Narx: {order.price} so'm")
+    if order.note:
+        lines.append(f"Izoh: {order.note}")
+    if driver:
+        driver_phone = driver.user.telephone if driver.user else "-"
+        lines.extend(
+            [
+                f"Haydovchi: {driver.full_name}",
+                f"Haydovchi tel: {driver_phone}",
+                f"Avto: {driver.car_model} {driver.car_number}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def _send_telegram_message(text: str) -> Optional[int]:
+    payload = {
+        "chat_id": settings.TELEGRAM_ORDER_CHANNEL_ID,
+        "text": text,
+        "disable_web_page_preview": True,
+    }
+    response = _telegram_api_request("sendMessage", payload)
+    if not response or not response.get("ok"):
+        return None
+    result = response.get("result") or {}
+    return result.get("message_id")
+
+
+def _edit_telegram_message(message_id: int, text: str) -> bool:
+    payload = {
+        "chat_id": settings.TELEGRAM_ORDER_CHANNEL_ID,
+        "message_id": message_id,
+        "text": text,
+        "disable_web_page_preview": True,
+    }
+    response = _telegram_api_request("editMessageText", payload)
+    return bool(response and response.get("ok"))
+
+
+async def send_order_telegram_message(
+    db: Session,
+    order: Union["TaxiOrder", "DeliveryOrder"],
+    order_type: str,
+    status_label: str,
+    driver: Optional[Driver] = None,
+) -> Optional[int]:
+    if not _telegram_enabled():
+        return None
+    message = _build_order_telegram_message(db, order, order_type, status_label, driver)
+    return await asyncio.to_thread(_send_telegram_message, message)
+
+
+async def update_order_telegram_message(
+    db: Session,
+    order: Union["TaxiOrder", "DeliveryOrder"],
+    order_type: str,
+    status_label: str,
+    driver: Optional[Driver] = None,
+) -> Optional[int]:
+    if not _telegram_enabled():
+        return None
+    message = _build_order_telegram_message(db, order, order_type, status_label, driver)
+    message_id = getattr(order, "telegram_message_id", None)
+    if message_id:
+        updated = await asyncio.to_thread(_edit_telegram_message, message_id, message)
+        if updated:
+            return message_id
+    return await asyncio.to_thread(_send_telegram_message, message)

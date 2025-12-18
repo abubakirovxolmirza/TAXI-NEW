@@ -77,6 +77,32 @@ class UserResponse(UserBase):
         from_attributes = True
 
 
+class DriverBonusInfo(BaseModel):
+    id: int
+    full_name: str
+    car_model: str
+    car_number: str
+
+    class Config:
+        from_attributes = True
+
+
+class BonusBallUpdate(BaseModel):
+    bonus_ball: Decimal = Field(..., ge=0)
+
+
+class BonusBallUserResponse(BaseModel):
+    id: int
+    telephone: str
+    name: str
+    role: UserRole
+    bonus_ball: Decimal
+    driver_profile: Optional[DriverBonusInfo] = None
+
+    class Config:
+        from_attributes = True
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str

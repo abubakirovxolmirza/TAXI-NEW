@@ -182,6 +182,7 @@ class TaxiOrder(Base):
     public_order = Column(Boolean, default=False, nullable=False)  # If true, order is visible to all drivers
     pending_time = Column(Integer, nullable=True)  # Time in seconds before order becomes public
     cancellation_reason = Column(Text, nullable=True)
+    telegram_message_id = Column(Integer, nullable=True)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     confirmed_at = Column(DateTime(timezone=True), nullable=True)  # When driver confirms after accepting
     is_confirmed = Column(Boolean, default=False, nullable=False)  # Whether driver confirmed the order
@@ -234,6 +235,7 @@ class DeliveryOrder(Base):
     public_order = Column(Boolean, default=False, nullable=False)  # If true, order is visible to all drivers
     pending_time = Column(Integer, nullable=True)  # Time in seconds before order becomes public
     cancellation_reason = Column(Text, nullable=True)
+    telegram_message_id = Column(Integer, nullable=True)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     confirmed_at = Column(DateTime(timezone=True), nullable=True)  # When driver confirms after accepting
     is_confirmed = Column(Boolean, default=False, nullable=False)  # Whether driver confirmed the order
