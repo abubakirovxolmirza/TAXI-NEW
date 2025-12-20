@@ -5,7 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import List, Optional, Set, Union
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, extract, func, or_
 from sqlalchemy.orm import Session
@@ -57,6 +57,22 @@ def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[
     safe_limit = DEFAULT_PAGE_SIZE if limit is None or limit <= 0 else min(limit, MAX_PAGE_SIZE)
     safe_offset = 0 if offset is None or offset < 0 else offset
     return safe_limit, safe_offset
+
+
+def _parse_region_ids_csv(raw_ids: Optional[str]) -> Set[int]:
+    """Convert a comma-separated list of region ids into a set of ints."""
+    if not raw_ids:
+        return set()
+    candidates = (raw_ids or "").split(",")
+    parsed: Set[int] = set()
+    for item in candidates:
+        try:
+            value = int(item.strip())
+            if value:
+                parsed.add(value)
+        except (TypeError, ValueError):
+            continue
+    return parsed
 
 
 def _get_local_cancelled(driver_id: int, order_type: str) -> Set[int]:
@@ -344,6 +360,7 @@ async def _collect_available_orders_for_driver(
     db: Session,
     from_region_id: Optional[int] = None,
     to_region_id: Optional[int] = None,
+    to_region_ids: Optional[Set[int]] = None,
     region_id: Optional[int] = None,
     order_type: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
@@ -369,6 +386,9 @@ async def _collect_available_orders_for_driver(
     include_taxi = normalized_order_type in (None, "taxi")
     include_delivery = normalized_order_type in (None, "delivery")
     effective_from_region_id = from_region_id or region_id
+    effective_to_region_ids: Set[int] = set(to_region_ids or set())
+    if to_region_id:
+        effective_to_region_ids.add(to_region_id)
     limit, offset = _normalize_pagination(limit, offset)
     fetch_size = limit + offset + 1
     taxi_orders: list[TaxiOrder] = []
@@ -387,8 +407,10 @@ async def _collect_available_orders_for_driver(
                 TaxiOrder.from_region_id == effective_from_region_id,
             )
 
-        if to_region_id:
-            taxi_query = taxi_query.filter(TaxiOrder.to_region_id == to_region_id)
+        if effective_to_region_ids:
+            taxi_query = taxi_query.filter(
+                TaxiOrder.to_region_id.in_(effective_to_region_ids),
+            )
 
         if blocked_taxi_ids:
             taxi_query = taxi_query.filter(~TaxiOrder.id.in_(blocked_taxi_ids))
@@ -410,9 +432,9 @@ async def _collect_available_orders_for_driver(
                 DeliveryOrder.from_region_id == effective_from_region_id,
             )
 
-        if to_region_id:
+        if effective_to_region_ids:
             delivery_query = delivery_query.filter(
-                DeliveryOrder.to_region_id == to_region_id,
+                DeliveryOrder.to_region_id.in_(effective_to_region_ids),
             )
 
         if blocked_delivery_ids:
@@ -1006,6 +1028,7 @@ def get_my_orders(
 async def get_active_orders(
     from_region_id: Optional[int] = None,
     to_region_id: Optional[int] = None,
+    to_region_ids: Optional[str] = Query(None),
     region_id: Optional[int] = None,
     order_type: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
@@ -1032,6 +1055,7 @@ async def get_active_orders(
         db,
         from_region_id=from_region_id,
         to_region_id=to_region_id,
+        to_region_ids=_parse_region_ids_csv(to_region_ids),
         region_id=region_id,
         order_type=order_type,
         limit=limit,
@@ -1108,6 +1132,7 @@ def get_order_history(
 async def get_new_orders(
     from_region_id: Optional[int] = None,
     to_region_id: Optional[int] = None,
+    to_region_ids: Optional[str] = Query(None),
     region_id: Optional[int] = None,
     order_type: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
@@ -1129,6 +1154,7 @@ async def get_new_orders(
         db,
         from_region_id=from_region_id,
         to_region_id=to_region_id,
+        to_region_ids=_parse_region_ids_csv(to_region_ids),
         region_id=region_id,
         order_type=order_type,
         limit=limit,
