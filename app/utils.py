@@ -743,7 +743,7 @@ def _build_order_telegram_message(
     to_region = _resolve_region_name(db, order.to_region_id)
     from_district = _resolve_district_name(db, order.from_district_id)
     to_district = _resolve_district_name(db, order.to_district_id)
-    schedule = _format_schedule(order.scheduled_datetime) if getattr(order, "scheduled_datetime", None) else None
+    reja_vaqt = f"{order.date} • {order.time_start}-{order.time_end}"
     lines: list[str] = []
     if order_type == "taxi":
         lines.extend(
@@ -759,7 +759,7 @@ def _build_order_telegram_message(
                 f"👥 *Yo'lovchilar soni:* {order.passengers} ta",
                 "",
                 "⏰ *Reja vaqt:*",
-                f"{order.date} • {order.time_start}",
+                reja_vaqt,
                 "",
                 "💰 *Narx:*",
                 _format_price(order.price),
@@ -780,14 +780,12 @@ def _build_order_telegram_message(
                 f"🧾 *Yuk turi:* {item_type}",
                 "",
                 "⏰ *Reja vaqt:*",
-                f"{order.date} • {order.time_start}",
+                reja_vaqt,
                 "",
                 "💰 *Narx:*",
                 _format_price(order.price),
             ]
         )
-    if schedule:
-        lines.extend(["", f"📌 *Rejalashtirilgan:* {schedule}"])
     if order.note:
         lines.extend(["", f"📝 *Izoh:* {order.note}"])
     if driver:
