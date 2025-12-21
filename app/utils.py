@@ -717,11 +717,33 @@ def _build_order_telegram_message(
         except Exception:
             return f"{value} so'm"
 
+    def _format_schedule(dt: datetime) -> str:
+        try:
+            local_dt = dt.astimezone() if dt.tzinfo else dt
+            months = [
+                "yanvar",
+                "fevral",
+                "mart",
+                "aprel",
+                "may",
+                "iyun",
+                "iyul",
+                "avgust",
+                "sentabr",
+                "oktabr",
+                "noyabr",
+                "dekabr",
+            ]
+            month_name = months[local_dt.month - 1] if 1 <= local_dt.month <= 12 else local_dt.strftime("%b")
+            return f"{local_dt.day:02d}-{month_name} {local_dt.year} • {local_dt:%H:%M}"
+        except Exception:
+            return dt.isoformat()
+
     from_region = _resolve_region_name(db, order.from_region_id)
     to_region = _resolve_region_name(db, order.to_region_id)
     from_district = _resolve_district_name(db, order.from_district_id)
     to_district = _resolve_district_name(db, order.to_district_id)
-    schedule = order.scheduled_datetime.isoformat() if order.scheduled_datetime else None
+    schedule = _format_schedule(order.scheduled_datetime) if getattr(order, "scheduled_datetime", None) else None
     lines: list[str] = []
     if order_type == "taxi":
         lines.extend(
@@ -766,8 +788,6 @@ def _build_order_telegram_message(
         )
     if schedule:
         lines.extend(["", f"📌 *Rejalashtirilgan:* {schedule}"])
-    if status_label:
-        lines.extend(["", f"ℹ️ *Holat:* {status_label}"])
     if order.note:
         lines.extend(["", f"📝 *Izoh:* {order.note}"])
     if driver:
