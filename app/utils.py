@@ -709,53 +709,75 @@ def _build_order_telegram_message(
     status_label: str,
     driver: Optional[Driver] = None,
 ) -> str:
+    def _format_price(value) -> str:
+        try:
+            amount = int(value)
+            formatted = format(amount, ",").replace(",", " ")
+            return f"{formatted} so'm"
+        except Exception:
+            return f"{value} so'm"
+
     from_region = _resolve_region_name(db, order.from_region_id)
     to_region = _resolve_region_name(db, order.to_region_id)
     from_district = _resolve_district_name(db, order.from_district_id)
     to_district = _resolve_district_name(db, order.to_district_id)
     schedule = order.scheduled_datetime.isoformat() if order.scheduled_datetime else None
-    lines = []
+    lines: list[str] = []
     if order_type == "taxi":
         lines.extend(
             [
-                "Taksi buyurtma",
-                f"ID: {order.id}",
-                f"Holat: {status_label}",
-                f"Mijoz: {order.username} ({order.telephone})",
-                f"Yo'nalish: {from_region} / {from_district} -> {to_region} / {to_district}",
-                f"Manzil: {order.pickup_address or '-'}",
-                f"Yo'lovchilar: {order.passengers}",
-                f"Vaqt: {order.date} {order.time_start}-{order.time_end}",
+                "🚖 *YANGI TAKSI BUYURTMA*",
+                "",
+                "👤 *Mijoz:*",
+                f"{order.username}",
+                "",
+                "📍 *Yo'nalish:*",
+                f"{from_region}, {from_district} ➡️ {to_region}, {to_district}",
+                "",
+                f"👥 *Yo'lovchilar soni:* {order.passengers} ta",
+                "",
+                "⏰ *Reja vaqt:*",
+                f"{order.date} • {order.time_start}",
+                "",
+                "💰 *Narx:*",
+                _format_price(order.price),
             ]
         )
     else:
         item_type = getattr(order.item_type, "value", order.item_type)
         lines.extend(
             [
-                "Yetkazib berish buyurtma",
-                f"ID: {order.id}",
-                f"Holat: {status_label}",
-                f"Jo'natuvchi: {order.username} ({order.sender_telephone})",
-                f"Qabul qiluvchi tel: {order.receiver_telephone}",
-                f"Yo'nalish: {from_region} / {from_district} -> {to_region} / {to_district}",
-                f"Olish manzili: {order.pickup_address or '-'}",
-                f"Yetkazish manzili: {order.dropoff_address or '-'}",
-                f"Yuk turi: {item_type}",
-                f"Vaqt: {order.date} {order.time_start}-{order.time_end}",
+                "📦 *YANGI YETKAZIB BERISH BUYURTMA*",
+                "",
+                "👤 *Jo'natuvchi:*",
+                f"{order.username}",
+                "",
+                "📍 *Yo'nalish:*",
+                f"{from_region}, {from_district} ➡️ {to_region}, {to_district}",
+                "",
+                f"🧾 *Yuk turi:* {item_type}",
+                "",
+                "⏰ *Reja vaqt:*",
+                f"{order.date} • {order.time_start}",
+                "",
+                "💰 *Narx:*",
+                _format_price(order.price),
             ]
         )
     if schedule:
-        lines.append(f"Reja vaqt: {schedule}")
-    lines.append(f"Narx: {order.price} so'm")
+        lines.extend(["", f"📌 *Rejalashtirilgan:* {schedule}"])
+    if status_label:
+        lines.extend(["", f"ℹ️ *Holat:* {status_label}"])
     if order.note:
-        lines.append(f"Izoh: {order.note}")
+        lines.extend(["", f"📝 *Izoh:* {order.note}"])
     if driver:
         driver_phone = driver.user.telephone if driver.user else "-"
         lines.extend(
             [
-                f"Haydovchi: {driver.full_name}",
-                f"Haydovchi tel: {driver_phone}",
-                f"Avto: {driver.car_model} {driver.car_number}",
+                "",
+                f"🚗 *Haydovchi:* {driver.full_name}",
+                f"📞 *Haydovchi tel:* {driver_phone}",
+                f"🚙 *Avto:* {driver.car_model} {driver.car_number}",
             ]
         )
     return "\n".join(lines)
@@ -765,6 +787,7 @@ def _send_telegram_message(text: str) -> Optional[int]:
     payload = {
         "chat_id": settings.TELEGRAM_ORDER_CHANNEL_ID,
         "text": text,
+        "parse_mode": "Markdown",
         "disable_web_page_preview": True,
     }
     response = _telegram_api_request("sendMessage", payload)
@@ -779,6 +802,7 @@ def _edit_telegram_message(message_id: int, text: str) -> bool:
         "chat_id": settings.TELEGRAM_ORDER_CHANNEL_ID,
         "message_id": message_id,
         "text": text,
+        "parse_mode": "Markdown",
         "disable_web_page_preview": True,
     }
     response = _telegram_api_request("editMessageText", payload)
