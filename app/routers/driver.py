@@ -139,6 +139,29 @@ def _should_block_driver(reason: Optional[str]) -> bool:
     }
 
 
+def _driver_has_accepted_order(db: Session, driver_id: int) -> bool:
+    """Return True if the driver has an active order with status ACCEPTED."""
+    taxi_exists = (
+        db.query(TaxiOrder.id)
+        .filter(
+            TaxiOrder.driver_id == driver_id,
+            TaxiOrder.status == OrderStatus.ACCEPTED,
+        )
+        .first()
+    )
+    if taxi_exists:
+        return True
+    delivery_exists = (
+        db.query(DeliveryOrder.id)
+        .filter(
+            DeliveryOrder.driver_id == driver_id,
+            DeliveryOrder.status == OrderStatus.ACCEPTED,
+        )
+        .first()
+    )
+    return bool(delivery_exists)
+
+
 def _build_driver_payload(driver: Driver) -> dict:
     """Prepare driver info for websocket payloads."""
     user = driver.user
@@ -249,23 +272,40 @@ def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], 
 def _is_order_visible_to_driver(
     order: Union[TaxiOrder, DeliveryOrder],
     driver_id: int,
+    driver_has_accepted_order: bool = False,
 ) -> bool:
     """
     Determine whether the current driver is allowed to see the order.
     - Public orders are always visible.
-    - Non-public orders are only visible to the assigned driver.
+    - Non-public orders are visible to the assigned driver.
+    - Drivers with an accepted order can see non-public, unassigned orders for batching.
+    - Orders assigned to another driver are never visible.
     """
+    assigned_driver_id = getattr(order, "driver_id", None)
+    if assigned_driver_id and assigned_driver_id != driver_id:
+        return False
     if getattr(order, "public_order", False):
         return True
-    return getattr(order, "driver_id", None) == driver_id
+    if assigned_driver_id == driver_id:
+        return True
+    if driver_has_accepted_order:
+        return True
+    return False
 
 
 def _ensure_order_visibility(
     order: Union[TaxiOrder, DeliveryOrder],
     driver: Driver,
+    db: Session,
+    driver_has_accepted_order: Optional[bool] = None,
 ):
     """Enforce visibility rules for a driver on an order."""
-    if not _is_order_visible_to_driver(order, driver.id):
+    effective_active = (
+        driver_has_accepted_order
+        if driver_has_accepted_order is not None
+        else _driver_has_accepted_order(db, driver.id)
+    )
+    if not _is_order_visible_to_driver(order, driver.id, effective_active):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Order is not visible to this driver",
@@ -415,6 +455,7 @@ async def _collect_available_orders_for_driver(
     effective_to_region_ids: Set[int] = set(to_region_ids or set())
     if to_region_id:
         effective_to_region_ids.add(to_region_id)
+    driver_has_accepted_order = _driver_has_accepted_order(db, driver.id)
     limit, offset = _normalize_pagination(limit, offset)
     fetch_size = limit + offset + 1
     taxi_orders: list[TaxiOrder] = []
@@ -438,9 +479,10 @@ async def _collect_available_orders_for_driver(
                 TaxiOrder.to_region_id.in_(effective_to_region_ids),
             )
 
-        taxi_query = taxi_query.filter(
-            or_(TaxiOrder.public_order.is_(True), TaxiOrder.driver_id == driver.id),
-        )
+        if not driver_has_accepted_order:
+            taxi_query = taxi_query.filter(
+                or_(TaxiOrder.public_order.is_(True), TaxiOrder.driver_id == driver.id),
+            )
 
         if blocked_taxi_ids:
             taxi_query = taxi_query.filter(~TaxiOrder.id.in_(blocked_taxi_ids))
@@ -467,9 +509,10 @@ async def _collect_available_orders_for_driver(
                 DeliveryOrder.to_region_id.in_(effective_to_region_ids),
             )
 
-        delivery_query = delivery_query.filter(
-            or_(DeliveryOrder.public_order.is_(True), DeliveryOrder.driver_id == driver.id),
-        )
+        if not driver_has_accepted_order:
+            delivery_query = delivery_query.filter(
+                or_(DeliveryOrder.public_order.is_(True), DeliveryOrder.driver_id == driver.id),
+            )
 
         if blocked_delivery_ids:
             delivery_query = delivery_query.filter(
@@ -1242,7 +1285,7 @@ async def preview_order(
             detail="Only pending orders can be previewed",
         )
 
-    _ensure_order_visibility(order, driver)
+    _ensure_order_visibility(order, driver, db)
 
     # If another driver is already holding this order, deny preview
     if order.driver_id and order.driver_id != driver.id:
@@ -1416,7 +1459,7 @@ async def accept_order(
             detail="Order is not available for acceptance"
         )
 
-    _ensure_order_visibility(order, driver)
+    _ensure_order_visibility(order, driver, db)
 
     # Accept order - no time limit check
     order.driver_id = driver.id
