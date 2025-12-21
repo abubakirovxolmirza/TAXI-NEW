@@ -133,12 +133,19 @@ async def create_delivery_order(
         "time_start": new_order.time_start,
         "time_end": new_order.time_end,
         "scheduled_datetime": new_order.scheduled_datetime.isoformat() if new_order.scheduled_datetime else None,
-        "created_at": new_order.created_at.isoformat()
+        "created_at": new_order.created_at.isoformat(),
+        "public_order": new_order.public_order,
     }
-    asyncio.create_task(manager.broadcast_to_all_drivers({
-        "type": "new_order",
-        "order": order_data_dict
-    }))
+    if new_order.public_order:
+        asyncio.create_task(manager.broadcast_to_all_drivers({
+            "type": "new_order",
+            "order": order_data_dict
+        }))
+    elif new_order.driver_id:
+        asyncio.create_task(manager.send_to_driver(new_order.driver_id, {
+            "type": "new_order",
+            "order": order_data_dict
+        }))
     
     return new_order
 

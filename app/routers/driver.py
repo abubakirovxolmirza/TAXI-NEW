@@ -246,6 +246,32 @@ def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], 
     return base
 
 
+def _is_order_visible_to_driver(
+    order: Union[TaxiOrder, DeliveryOrder],
+    driver_id: int,
+) -> bool:
+    """
+    Determine whether the current driver is allowed to see the order.
+    - Public orders are always visible.
+    - Non-public orders are only visible to the assigned driver.
+    """
+    if getattr(order, "public_order", False):
+        return True
+    return getattr(order, "driver_id", None) == driver_id
+
+
+def _ensure_order_visibility(
+    order: Union[TaxiOrder, DeliveryOrder],
+    driver: Driver,
+):
+    """Enforce visibility rules for a driver on an order."""
+    if not _is_order_visible_to_driver(order, driver.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Order is not visible to this driver",
+        )
+
+
 def _serialize_taxi_order_for_passenger(order: TaxiOrder) -> dict:
     payload = {
         "id": order.id,
@@ -412,6 +438,10 @@ async def _collect_available_orders_for_driver(
                 TaxiOrder.to_region_id.in_(effective_to_region_ids),
             )
 
+        taxi_query = taxi_query.filter(
+            or_(TaxiOrder.public_order.is_(True), TaxiOrder.driver_id == driver.id),
+        )
+
         if blocked_taxi_ids:
             taxi_query = taxi_query.filter(~TaxiOrder.id.in_(blocked_taxi_ids))
 
@@ -436,6 +466,10 @@ async def _collect_available_orders_for_driver(
             delivery_query = delivery_query.filter(
                 DeliveryOrder.to_region_id.in_(effective_to_region_ids),
             )
+
+        delivery_query = delivery_query.filter(
+            or_(DeliveryOrder.public_order.is_(True), DeliveryOrder.driver_id == driver.id),
+        )
 
         if blocked_delivery_ids:
             delivery_query = delivery_query.filter(
@@ -1208,6 +1242,8 @@ async def preview_order(
             detail="Only pending orders can be previewed",
         )
 
+    _ensure_order_visibility(order, driver)
+
     # If another driver is already holding this order, deny preview
     if order.driver_id and order.driver_id != driver.id:
         raise HTTPException(
@@ -1379,7 +1415,9 @@ async def accept_order(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Order is not available for acceptance"
         )
-    
+
+    _ensure_order_visibility(order, driver)
+
     # Accept order - no time limit check
     order.driver_id = driver.id
     order.status = OrderStatus.ACCEPTED
