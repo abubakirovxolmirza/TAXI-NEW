@@ -133,7 +133,7 @@ def cancel_taxi_order_admin(
     
     # Handle refund if order was accepted
     if order.status == OrderStatus.ACCEPTED and order.driver_id:
-        apply_service_fee_refund(db, order.driver_id, order.service_fee)
+        apply_service_fee_refund(db, order, "taxi")
     
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation_data.cancellation_reason + " (Admin cancelled)"
@@ -306,7 +306,7 @@ def cancel_delivery_order_admin(
     
     # Handle refund if order was accepted
     if order.status == OrderStatus.ACCEPTED and order.driver_id:
-        apply_service_fee_refund(db, order.driver_id, order.service_fee)
+        apply_service_fee_refund(db, order, "delivery")
     
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation_data.cancellation_reason + " (Admin cancelled)"

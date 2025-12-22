@@ -69,10 +69,37 @@ class User(Base):
     
     # Relationships
     driver_profile = relationship("Driver", back_populates="user", uselist=False)
+    permission = relationship("Permission", back_populates="user", uselist=False)
     taxi_orders = relationship("TaxiOrder", back_populates="user", foreign_keys="TaxiOrder.user_id")
     delivery_orders = relationship("DeliveryOrder", back_populates="user", foreign_keys="DeliveryOrder.user_id")
     ratings_given = relationship("Rating", back_populates="user", foreign_keys="Rating.user_id")
     driver_application = relationship("DriverApplication", back_populates="user", foreign_keys="DriverApplication.user_id", uselist=False)
+
+
+class Permission(Base):
+    __tablename__ = "permissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    orders_view = Column(Boolean, default=False, nullable=False)
+    orders_manage = Column(Boolean, default=False, nullable=False)
+    drivers_list = Column(Boolean, default=False, nullable=False)
+    drivers_manage = Column(Boolean, default=False, nullable=False)
+    users_view = Column(Boolean, default=False, nullable=False)
+    users_manage = Column(Boolean, default=False, nullable=False)
+    transactions_view = Column(Boolean, default=False, nullable=False)
+    settings_edit = Column(Boolean, default=False, nullable=False)
+    support_chat_access = Column(Boolean, default=False, nullable=False)
+    pricing_manage = Column(Boolean, default=False, nullable=False)
+    regions_manage = Column(Boolean, default=False, nullable=False)
+    bonuses_manage = Column(Boolean, default=False, nullable=False)
+    feedback_view = Column(Boolean, default=False, nullable=False)
+    notifications_send = Column(Boolean, default=False, nullable=False)
+    permissions_manage = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User", back_populates="permission")
 
 
 class Driver(Base):

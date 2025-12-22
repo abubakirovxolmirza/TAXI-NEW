@@ -394,7 +394,10 @@ async def cancel_taxi_order(
             detail="Order not found"
         )
     
-    if order.user_id != current_user.id:
+    is_owner = order.user_id == current_user.id
+    driver_profile = current_user.driver_profile
+    is_assigned_driver = driver_profile and order.driver_id == driver_profile.id
+    if not (is_owner or is_assigned_driver):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to cancel this order"
@@ -404,6 +407,11 @@ async def cancel_taxi_order(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only pending or accepted orders can be cancelled"
+        )
+    if is_assigned_driver and order.status != OrderStatus.ACCEPTED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Drivers can only cancel accepted orders"
         )
 
     previous_status = order.status
@@ -467,7 +475,7 @@ async def cancel_taxi_order(
         title="Order Cancelled",
         message=f"Your taxi order #{order.id} has been cancelled successfully.",
         notification_type="order_cancelled",
-        user_id=current_user.id
+        user_id=order.user_id
     )
 
     await manager.broadcast_to_all_drivers({

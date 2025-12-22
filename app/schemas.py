@@ -77,6 +77,56 @@ class UserResponse(UserBase):
         from_attributes = True
 
 
+class PermissionBase(BaseModel):
+    orders_view: bool = False
+    orders_manage: bool = False
+    drivers_list: bool = False
+    drivers_manage: bool = False
+    users_view: bool = False
+    users_manage: bool = False
+    transactions_view: bool = False
+    settings_edit: bool = False
+    support_chat_access: bool = False
+    pricing_manage: bool = False
+    regions_manage: bool = False
+    bonuses_manage: bool = False
+    feedback_view: bool = False
+    notifications_send: bool = False
+    permissions_manage: bool = False
+
+
+class PermissionCreate(PermissionBase):
+    user_id: int
+
+
+class PermissionUpdate(BaseModel):
+    orders_view: Optional[bool] = None
+    orders_manage: Optional[bool] = None
+    drivers_list: Optional[bool] = None
+    drivers_manage: Optional[bool] = None
+    users_view: Optional[bool] = None
+    users_manage: Optional[bool] = None
+    transactions_view: Optional[bool] = None
+    settings_edit: Optional[bool] = None
+    support_chat_access: Optional[bool] = None
+    pricing_manage: Optional[bool] = None
+    regions_manage: Optional[bool] = None
+    bonuses_manage: Optional[bool] = None
+    feedback_view: Optional[bool] = None
+    notifications_send: Optional[bool] = None
+    permissions_manage: Optional[bool] = None
+
+
+class PermissionResponse(PermissionBase):
+    id: int
+    user_id: int
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
 class DriverBonusInfo(BaseModel):
     id: int
     full_name: str
