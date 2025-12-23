@@ -81,21 +81,43 @@ class Permission(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    
+    # Order permissions
     orders_view = Column(Boolean, default=False, nullable=False)
-    orders_manage = Column(Boolean, default=False, nullable=False)
+    orders_update = Column(Boolean, default=False, nullable=False)
+    orders_cancel = Column(Boolean, default=False, nullable=False)
+    create_order = Column(Boolean, default=False, nullable=False)
+    
+    # Driver permissions
+    drivers_applications = Column(Boolean, default=False, nullable=False)
     drivers_list = Column(Boolean, default=False, nullable=False)
-    drivers_manage = Column(Boolean, default=False, nullable=False)
+    drivers_block = Column(Boolean, default=False, nullable=False)
+    drivers_delete = Column(Boolean, default=False, nullable=False)
+    drivers_balance = Column(Boolean, default=False, nullable=False)
+    
+    # User permissions
     users_view = Column(Boolean, default=False, nullable=False)
-    users_manage = Column(Boolean, default=False, nullable=False)
-    transactions_view = Column(Boolean, default=False, nullable=False)
-    settings_edit = Column(Boolean, default=False, nullable=False)
-    support_chat_access = Column(Boolean, default=False, nullable=False)
-    pricing_manage = Column(Boolean, default=False, nullable=False)
-    regions_manage = Column(Boolean, default=False, nullable=False)
-    bonuses_manage = Column(Boolean, default=False, nullable=False)
-    feedback_view = Column(Boolean, default=False, nullable=False)
-    notifications_send = Column(Boolean, default=False, nullable=False)
-    permissions_manage = Column(Boolean, default=False, nullable=False)
+    users_role = Column(Boolean, default=False, nullable=False)
+    users_reset_password = Column(Boolean, default=False, nullable=False)
+    users_bonus = Column(Boolean, default=False, nullable=False)
+    
+    # Pricing permissions
+    pricing_view = Column(Boolean, default=False, nullable=False)
+    pricing_edit = Column(Boolean, default=False, nullable=False)
+    pricing_fee = Column(Boolean, default=False, nullable=False)
+    
+    # Stats and reports permissions
+    stats_view = Column(Boolean, default=False, nullable=False)
+    region_stats_view = Column(Boolean, default=False, nullable=False)
+    admin_report_view = Column(Boolean, default=False, nullable=False)
+    
+    # Message and notification permissions
+    messages_feedback = Column(Boolean, default=False, nullable=False)
+    broadcast_send = Column(Boolean, default=False, nullable=False)
+    
+    # Profile permission
+    profile = Column(Boolean, default=False, nullable=False)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

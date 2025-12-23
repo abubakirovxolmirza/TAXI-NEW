@@ -78,21 +78,41 @@ class UserResponse(UserBase):
 
 
 class PermissionBase(BaseModel):
+    # Order permissions
     orders_view: bool = False
-    orders_manage: bool = False
+    orders_update: bool = False
+    orders_cancel: bool = False
+    create_order: bool = False
+    
+    # Driver permissions
+    drivers_applications: bool = False
     drivers_list: bool = False
-    drivers_manage: bool = False
+    drivers_block: bool = False
+    drivers_delete: bool = False
+    drivers_balance: bool = False
+    
+    # User permissions
     users_view: bool = False
-    users_manage: bool = False
-    transactions_view: bool = False
-    settings_edit: bool = False
-    support_chat_access: bool = False
-    pricing_manage: bool = False
-    regions_manage: bool = False
-    bonuses_manage: bool = False
-    feedback_view: bool = False
-    notifications_send: bool = False
-    permissions_manage: bool = False
+    users_role: bool = False
+    users_reset_password: bool = False
+    users_bonus: bool = False
+    
+    # Pricing permissions
+    pricing_view: bool = False
+    pricing_edit: bool = False
+    pricing_fee: bool = False
+    
+    # Stats and reports permissions
+    stats_view: bool = False
+    region_stats_view: bool = False
+    admin_report_view: bool = False
+    
+    # Message and notification permissions
+    messages_feedback: bool = False
+    broadcast_send: bool = False
+    
+    # Profile permission
+    profile: bool = False
 
 
 class PermissionCreate(PermissionBase):
@@ -100,21 +120,41 @@ class PermissionCreate(PermissionBase):
 
 
 class PermissionUpdate(BaseModel):
+    # Order permissions
     orders_view: Optional[bool] = None
-    orders_manage: Optional[bool] = None
+    orders_update: Optional[bool] = None
+    orders_cancel: Optional[bool] = None
+    create_order: Optional[bool] = None
+    
+    # Driver permissions
+    drivers_applications: Optional[bool] = None
     drivers_list: Optional[bool] = None
-    drivers_manage: Optional[bool] = None
+    drivers_block: Optional[bool] = None
+    drivers_delete: Optional[bool] = None
+    drivers_balance: Optional[bool] = None
+    
+    # User permissions
     users_view: Optional[bool] = None
-    users_manage: Optional[bool] = None
-    transactions_view: Optional[bool] = None
-    settings_edit: Optional[bool] = None
-    support_chat_access: Optional[bool] = None
-    pricing_manage: Optional[bool] = None
-    regions_manage: Optional[bool] = None
-    bonuses_manage: Optional[bool] = None
-    feedback_view: Optional[bool] = None
-    notifications_send: Optional[bool] = None
-    permissions_manage: Optional[bool] = None
+    users_role: Optional[bool] = None
+    users_reset_password: Optional[bool] = None
+    users_bonus: Optional[bool] = None
+    
+    # Pricing permissions
+    pricing_view: Optional[bool] = None
+    pricing_edit: Optional[bool] = None
+    pricing_fee: Optional[bool] = None
+    
+    # Stats and reports permissions
+    stats_view: Optional[bool] = None
+    region_stats_view: Optional[bool] = None
+    admin_report_view: Optional[bool] = None
+    
+    # Message and notification permissions
+    messages_feedback: Optional[bool] = None
+    broadcast_send: Optional[bool] = None
+    
+    # Profile permission
+    profile: Optional[bool] = None
 
 
 class PermissionResponse(PermissionBase):

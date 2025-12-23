@@ -52,7 +52,7 @@ async def websocket_driver_endpoint(
         await websocket.send_json({
             "type": "connected",
             "driver_id": driver_id,
-            "message": "WebSocket connected successfully"
+            "message": "WebSocket muvaffaqiyatli ulandi"
         })
         
         try:
@@ -101,7 +101,7 @@ async def websocket_driver_endpoint(
                             await websocket.send_json({
                                 "type": "lock_failed",
                                 "order_id": order_id,
-                                "message": "Another driver is accepting this order"
+                                "message": "Boshqa haydovchi bu buyurtmani qabul qilmoqda"
                             })
         
         except WebSocketDisconnect:
@@ -144,7 +144,7 @@ async def websocket_user_endpoint(
         await websocket.send_json({
             "type": "connected",
             "user_id": user_id,
-            "message": "WebSocket connected successfully"
+            "message": "WebSocket muvaffaqiyatli ulandi"
         })
         
         try:

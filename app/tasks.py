@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import TaxiOrder, DeliveryOrder, OrderStatus
 from app.utils import create_notification
+from app.localization import get_notification_message
 from app.websocket import manager
 from app.routers.driver import (
     _broadcast_order_to_eligible_drivers,
@@ -70,10 +71,11 @@ async def check_unconfirmed_orders():
                 
                 # Notify the driver who lost the order
                 if old_driver_id:
+                    notification = get_notification_message("order_expired", order_id=order.id, order_type="taksi")
                     create_notification(
                         db=db,
-                        title="Order Expired",
-                        message=f"Taxi order #{order.id} confirmation time has expired (15 minutes). The order has been returned to the pool.",
+                        title=notification["title"],
+                        message=notification["message"],
                         notification_type="order_expired",
                         driver_id=old_driver_id
                     )
@@ -93,10 +95,11 @@ async def check_unconfirmed_orders():
                 )
                 
                 # Notify user
+                notification = get_notification_message("order_expired_user", order_id=order.id, order_type="taksi")
                 create_notification(
                     db=db,
-                    title="Order Status Update",
-                    message=f"Your taxi order #{order.id} is now available for other drivers.",
+                    title=notification["title"],
+                    message=notification["message"],
                     notification_type="order_status_update",
                     user_id=order.user_id
                 )
@@ -118,10 +121,11 @@ async def check_unconfirmed_orders():
                 
                 # Notify the driver who lost the order
                 if old_driver_id:
+                    notification = get_notification_message("order_expired", order_id=order.id, order_type="yetkazib berish")
                     create_notification(
                         db=db,
-                        title="Order Expired",
-                        message=f"Delivery order #{order.id} confirmation time has expired (15 minutes). The order has been returned to the pool.",
+                        title=notification["title"],
+                        message=notification["message"],
                         notification_type="order_expired",
                         driver_id=old_driver_id
                     )

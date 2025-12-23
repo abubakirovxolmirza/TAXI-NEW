@@ -16,6 +16,7 @@ from app.utils import (
     record_order_acceptance_history,
     send_order_telegram_message,
 )
+from app.localization import get_notification_message
 from app.websocket import manager
 
 DEFAULT_PAGE_SIZE = 10
@@ -110,10 +111,11 @@ async def create_delivery_order(
         db.refresh(new_order)
     
     # Notify order owner only
+    notification = get_notification_message("delivery_order_created", order_id=new_order.id)
     create_notification(
         db=db,
-        title="Delivery Order Created",
-        message=f"Your delivery order #{new_order.id} has been created and is waiting for drivers.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_created",
         user_id=current_user.id,
     )
@@ -258,7 +260,7 @@ def delete_all_delivery_orders(
     db.commit()
     
     return {
-        "message": f"Successfully deleted all delivery orders",
+        "message": "Barcha yetkazib berish buyurtmalari muvaffaqiyatli o'chirildi",
         "total_deleted": total_orders
     }
 
@@ -300,7 +302,7 @@ def delete_delivery_order(
     db.commit()
     
     return {
-        "message": "Order deleted successfully",
+        "message": "Buyurtma muvaffaqiyatli o'chirildi",
         "order_id": order_id
     }
 

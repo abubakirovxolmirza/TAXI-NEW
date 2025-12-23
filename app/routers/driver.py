@@ -37,6 +37,7 @@ from app.utils import (
     record_order_acceptance_history,
     update_order_telegram_message,
 )
+from app.localization import get_notification_message
 from app.websocket import manager
 
 router = APIRouter(prefix="/api/driver", tags=["Driver"])
@@ -1500,10 +1501,11 @@ async def accept_order(
     )
     
     # Notify user via database notification
+    notification = get_notification_message("order_accepted", order_id=order.id, order_type=order_type)
     create_notification(
         db=db,
-        title="Order Accepted",
-        message=f"Your {order_type} order #{order.id} has been accepted by a driver.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_accepted",
         user_id=order.user_id
     )
@@ -1597,10 +1599,11 @@ async def complete_order(
     bonus_amount = calculate_and_apply_bonus(db, order)
     
     # Notify user
+    notification = get_notification_message("order_completed", order_id=order.id, order_type=order_type)
     create_notification(
         db=db,
-        title="Order Completed",
-        message=f"Your {order_type} order #{order.id} has been completed. Please rate the driver.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_completed",
         user_id=order.user_id
     )
@@ -1705,10 +1708,11 @@ async def confirm_order(
             )
             
             # Notify the driver who lost the order
+            notification = get_notification_message("order_expired", order_id=order.id, order_type=order_type)
             create_notification(
                 db=db,
-                title="Order Expired",
-                message=f"Your {order_type} order #{order.id} confirmation time has expired (15 minutes). The order has been returned to the pool.",
+                title=notification["title"],
+                message=notification["message"],
                 notification_type="order_expired",
                 driver_id=driver.id
             )
@@ -1729,21 +1733,21 @@ async def confirm_order(
 
     if charge_result:
         fee_amount, charged_driver_id = charge_result
+        notification = get_notification_message("service_fee_deducted", amount=fee_amount, order_id=order.id)
         create_notification(
             db=db,
-            title="Service Fee Deducted",
-            message=(
-                f"Service fee of {fee_amount} has been deducted for {order_type} order #{order.id}."
-            ),
+            title=notification["title"],
+            message=notification["message"],
             notification_type="service_fee_charged",
             driver_id=charged_driver_id,
         )
     
     # Notify user
+    notification = get_notification_message("order_confirmed", order_id=order.id, order_type=order_type)
     create_notification(
         db=db,
-        title="Order Confirmed",
-        message=f"Your {order_type} order #{order.id} has been confirmed by the driver.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_confirmed",
         user_id=order.user_id
     )
@@ -1861,10 +1865,11 @@ async def reject_order(
     )
     
     # Notify user
+    notification = get_notification_message("order_returned", order_id=order.id, order_type=order_type)
     create_notification(
         db=db,
-        title="Order Returned",
-        message=f"Your {order_type} order #{order.id} was rejected by the driver and is now available for other drivers.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_rejected",
         user_id=order.user_id
     )

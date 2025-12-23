@@ -6,6 +6,7 @@ from app.models import User, Rating, TaxiOrder, DeliveryOrder
 from app.schemas import RatingCreate, RatingResponse
 from app.auth import get_current_user
 from app.utils import update_driver_rating, create_notification
+from app.localization import get_notification_message
 
 router = APIRouter(prefix="/api/ratings", tags=["Ratings"])
 
@@ -84,10 +85,11 @@ def create_rating(
     update_driver_rating(db, rating_data.driver_id)
     
     # Notify driver
+    notification = get_notification_message("new_rating", rating=rating_data.rating)
     create_notification(
         db=db,
-        title="New Rating",
-        message=f"You received a {rating_data.rating}-star rating from a customer.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="rating_received",
         driver_id=rating_data.driver_id
     )

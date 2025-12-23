@@ -13,6 +13,8 @@ from app.utils import (
     calculate_taxi_price,
     create_notification,
     get_last_history_driver_id,
+)
+from app.localization import get_notification_message
     get_or_create_guest_user,
     record_order_acceptance_history,
     send_order_telegram_message,
@@ -124,10 +126,11 @@ async def create_taxi_order(
         db.refresh(new_order)
     
     # Notify order owner only
+    notification = get_notification_message("taxi_order_created", order_id=new_order.id)
     create_notification(
         db=db,
-        title="Taxi Order Created",
-        message=f"Your taxi order #{new_order.id} has been created and is waiting for drivers.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_created",
         user_id=current_user.id,
     )
@@ -450,30 +453,31 @@ async def cancel_taxi_order(
         driver = db.query(Driver).filter(Driver.id == order.driver_id).first()
         if driver:
             db.refresh(driver)
+            notification = get_notification_message("order_cancelled", order_id=order.id, reason=cancellation.cancellation_reason)
             create_notification(
                 db=db,
-                title="Order Cancelled",
-                message=f"Taxi order #{order.id} has been cancelled. Reason: {cancellation.cancellation_reason}",
+                title=notification["title"],
+                message=notification["message"],
                 notification_type="order_cancelled",
                 driver_id=driver.id
             )
             if refund_result and refund_result[1] == driver.id:
                 refund_amount = refund_result[0]
+                refund_notification = get_notification_message("service_fee_refunded", order_id=order.id)
                 create_notification(
                     db=db,
-                    title="Service Fee Refunded",
-                    message=(
-                        f"Service fee of {refund_amount} has been returned for taxi order #{order.id}."
-                    ),
+                    title=refund_notification["title"],
+                    message=refund_notification["message"],
                     notification_type="service_fee_refunded",
                     driver_id=driver.id,
                 )
     
     # Notify user
+    user_notification = get_notification_message("order_cancelled_user", order_id=order.id)
     create_notification(
         db=db,
-        title="Order Cancelled",
-        message=f"Your taxi order #{order.id} has been cancelled successfully.",
+        title=user_notification["title"],
+        message=user_notification["message"],
         notification_type="order_cancelled",
         user_id=order.user_id
     )

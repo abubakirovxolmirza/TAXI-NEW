@@ -26,6 +26,7 @@ from app.models import (
     UserRole,
 )
 from app.websocket import manager
+from app.localization import get_notification_message
 
 if TYPE_CHECKING:
     from app.models import TaxiOrder, DeliveryOrder
@@ -653,10 +654,11 @@ def calculate_and_apply_bonus(db: Session, order: Union["TaxiOrder", "DeliveryOr
     db.commit()
     
     # Create notification for bonus user
+    notification = get_notification_message("bonus_earned", amount=bonus_amount, order_id=order.id)
     create_notification(
         db=db,
-        title="Bonus Earned",
-        message=f"You earned {bonus_amount} bonus from order #{order.id}",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="bonus_earned",
         user_id=bonus_user.id
     )
