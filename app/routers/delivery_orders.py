@@ -436,30 +436,31 @@ async def cancel_delivery_order(
         driver = db.query(Driver).filter(Driver.id == order.driver_id).first()
         if driver:
             db.refresh(driver)
+            notification = get_notification_message("order_cancelled_by_driver", order_id=order.id, order_type="yetkazib berish", reason=cancellation.cancellation_reason)
             create_notification(
                 db=db,
-                title="Order Cancelled",
-                message=f"Delivery order #{order.id} has been cancelled. Reason: {cancellation.cancellation_reason}",
+                title=notification["title"],
+                message=notification["message"],
                 notification_type="order_cancelled",
                 driver_id=driver.id
             )
             if refund_result and refund_result[1] == driver.id:
                 refund_amount = refund_result[0]
+                notification = get_notification_message("service_fee_refunded", order_id=order.id)
                 create_notification(
                     db=db,
-                    title="Service Fee Refunded",
-                    message=(
-                        f"Service fee of {refund_amount} has been returned for delivery order #{order.id}."
-                    ),
+                    title=notification["title"],
+                    message=notification["message"],
                     notification_type="service_fee_refunded",
                     driver_id=driver.id,
                 )
     
     # Notify user
+    notification = get_notification_message("order_cancelled_user", order_id=order.id, order_type="yetkazib berish")
     create_notification(
         db=db,
-        title="Order Cancelled",
-        message=f"Your delivery order #{order.id} has been cancelled successfully.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_cancelled",
         user_id=order.user_id
     )

@@ -14,6 +14,7 @@ from app.schemas import (
 )
 from app.auth import get_current_admin
 from app.utils import create_notification, apply_service_fee_refund
+from app.localization import get_notification_message
 
 router = APIRouter(prefix="/api/admin/orders", tags=["Admin - Orders"])
 
@@ -82,20 +83,22 @@ def update_taxi_order(
     db.refresh(order)
     
     # Notify user about update
+    notification = get_notification_message("order_updated_by_admin", order_id=order.id, order_type="taksi")
     create_notification(
         db=db,
-        title="Order Updated",
-        message=f"Your taxi order #{order.id} has been updated by admin.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_updated",
         user_id=order.user_id
     )
     
     # Notify driver if assigned
     if order.driver_id:
+        notification = get_notification_message("order_updated_by_admin_driver", order_id=order.id, order_type="taksi")
         create_notification(
             db=db,
-            title="Order Updated",
-            message=f"Taxi order #{order.id} has been updated by admin.",
+            title=notification["title"],
+            message=notification["message"],
             notification_type="order_updated",
             driver_id=order.driver_id
         )
@@ -142,20 +145,22 @@ def cancel_taxi_order_admin(
     db.commit()
     
     # Notify user
+    notification = get_notification_message("order_cancelled_by_admin", order_id=order.id, order_type="taksi", reason=cancellation_data.cancellation_reason)
     create_notification(
         db=db,
-        title="Order Cancelled",
-        message=f"Your taxi order #{order.id} has been cancelled by admin. Reason: {cancellation_data.cancellation_reason}",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_cancelled",
         user_id=order.user_id
     )
     
     # Notify driver if assigned
     if order.driver_id:
+        notification = get_notification_message("order_cancelled_by_admin_driver", order_id=order.id, order_type="taksi")
         create_notification(
             db=db,
-            title="Order Cancelled",
-            message=f"Taxi order #{order.id} has been cancelled by admin.",
+            title=notification["title"],
+            message=notification["message"],
             notification_type="order_cancelled",
             driver_id=order.driver_id
         )
@@ -255,20 +260,22 @@ def update_delivery_order(
     db.refresh(order)
     
     # Notify user about update
+    notification = get_notification_message("order_updated_by_admin", order_id=order.id, order_type="yetkazib berish")
     create_notification(
         db=db,
-        title="Order Updated",
-        message=f"Your delivery order #{order.id} has been updated by admin.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_updated",
         user_id=order.user_id
     )
     
     # Notify driver if assigned
     if order.driver_id:
+        notification = get_notification_message("order_updated_by_admin_driver", order_id=order.id, order_type="yetkazib berish")
         create_notification(
             db=db,
-            title="Order Updated",
-            message=f"Delivery order #{order.id} has been updated by admin.",
+            title=notification["title"],
+            message=notification["message"],
             notification_type="order_updated",
             driver_id=order.driver_id
         )
@@ -315,20 +322,22 @@ def cancel_delivery_order_admin(
     db.commit()
     
     # Notify user
+    notification = get_notification_message("order_cancelled_by_admin", order_id=order.id, order_type="yetkazib berish", reason=cancellation_data.cancellation_reason)
     create_notification(
         db=db,
-        title="Order Cancelled",
-        message=f"Your delivery order #{order.id} has been cancelled by admin. Reason: {cancellation_data.cancellation_reason}",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="order_cancelled",
         user_id=order.user_id
     )
     
     # Notify driver if assigned
     if order.driver_id:
+        notification = get_notification_message("order_cancelled_by_admin_driver", order_id=order.id, order_type="yetkazib berish")
         create_notification(
             db=db,
-            title="Order Cancelled",
-            message=f"Delivery order #{order.id} has been cancelled by admin.",
+            title=notification["title"],
+            message=notification["message"],
             notification_type="order_cancelled",
             driver_id=order.driver_id
         )

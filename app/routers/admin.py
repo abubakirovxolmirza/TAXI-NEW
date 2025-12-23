@@ -35,6 +35,7 @@ from app.utils import (
     get_service_fee_percentage,
     dispatch_driver_status_event,
 )
+from app.localization import get_notification_message
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -256,10 +257,11 @@ def block_driver(
     db.commit()
     
     # Notify driver
+    notification = get_notification_message("account_blocked")
     create_notification(
         db=db,
-        title="Account Blocked",
-        message="Your driver account has been blocked by admin.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="account_blocked",
         driver_id=driver_id
     )
@@ -286,10 +288,11 @@ def unblock_driver(
     db.commit()
     
     # Notify driver
+    notification = get_notification_message("account_unblocked")
     create_notification(
         db=db,
-        title="Account Unblocked",
-        message="Your driver account has been unblocked.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="account_unblocked",
         driver_id=driver_id
     )
@@ -356,10 +359,11 @@ def delete_driver(
         db.commit()
         
         # Notify user that driver profile was deleted
+        notification = get_notification_message("driver_profile_deleted")
         create_notification(
             db=db,
-            title="Driver Profile Deleted",
-            message="Your driver profile has been deleted by admin. Your user account is still active.",
+            title=notification["title"],
+            message=notification["message"],
             notification_type="driver_deleted",
             user_id=user_id
         )
@@ -404,10 +408,11 @@ def add_driver_balance(
     db.refresh(transaction)
     
     # Notify driver
+    notification = get_notification_message("balance_added", amount=balance_data.amount)
     create_notification(
         db=db,
-        title="Balance Added",
-        message=f"Your balance has been credited with {balance_data.amount}",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="balance_added",
         driver_id=balance_data.driver_id
     )
@@ -724,10 +729,11 @@ def add_admin(
     db.refresh(user)
     
     # Notify user
+    notification = get_notification_message("admin_access_granted")
     create_notification(
         db=db,
-        title="Admin Access Granted",
-        message="You have been granted admin privileges.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="role_updated",
         user_id=user_id
     )
@@ -786,10 +792,11 @@ def update_user_role(
     notification_message = (
         f"Your role has been changed from {old_role.value} to {role_data.role.value}."
     )
+    notification = get_notification_message("role_updated", message=notification_message)
     create_notification(
         db=db,
-        title="Role Updated",
-        message=notification_message,
+        title=notification["title"],
+        message=notification["message"],
         notification_type="role_updated",
         user_id=role_data.user_id,
         driver_id=driver_id,
@@ -825,10 +832,11 @@ def deactivate_user(
     db.commit()
     
     # Notify user
+    notification = get_notification_message("account_deactivated")
     create_notification(
         db=db,
-        title="Account Deactivated",
-        message="Your account has been deactivated by admin.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="account_deactivated",
         user_id=user_id
     )
@@ -859,10 +867,11 @@ def activate_user(
     db.commit()
     
     # Notify user
+    notification = get_notification_message("account_activated")
     create_notification(
         db=db,
-        title="Account Activated",
-        message="Your account has been activated.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="account_activated",
         user_id=user_id
     )
@@ -932,10 +941,11 @@ def reset_user_password(
     db.commit()
     
     # Notify user
+    notification = get_notification_message("password_reset")
     create_notification(
         db=db,
-        title="Password Reset",
-        message="Your password has been reset by admin.",
+        title=notification["title"],
+        message=notification["message"],
         notification_type="password_reset",
         user_id=user_id
     )

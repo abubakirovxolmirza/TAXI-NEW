@@ -29,7 +29,27 @@ NOTIFICATIONS = {
     },
     "order_cancelled_user": {
         "title": "Buyurtma bekor qilindi", 
-        "message": "#{order_id} raqamli taksi buyurtmangiz muvaffaqiyatli bekor qilindi."
+        "message": "#{order_id} raqamli {order_type} buyurtmangiz muvaffaqiyatli bekor qilindi."
+    },
+    "order_cancelled_by_driver": {
+        "title": "Buyurtma bekor qilindi",
+        "message": "#{order_id} raqamli {order_type} buyurtmasi bekor qilindi. Sabab: {reason}"
+    },
+    "order_cancelled_by_admin": {
+        "title": "Buyurtma bekor qilindi",
+        "message": "#{order_id} raqamli {order_type} buyurtmangiz admin tomonidan bekor qilindi. Sabab: {reason}"
+    },
+    "order_cancelled_by_admin_driver": {
+        "title": "Buyurtma bekor qilindi",
+        "message": "#{order_id} raqamli {order_type} buyurtmasi admin tomonidan bekor qilindi."
+    },
+    "order_updated_by_admin": {
+        "title": "Buyurtma yangilandi",
+        "message": "#{order_id} raqamli {order_type} buyurtmangiz admin tomonidan yangilandi."
+    },
+    "order_updated_by_admin_driver": {
+        "title": "Buyurtma yangilandi",
+        "message": "#{order_id} raqamli {order_type} buyurtmasi admin tomonidan yangilandi."
     },
     "order_returned": {
         "title": "Buyurtma qaytarildi",
@@ -42,6 +62,18 @@ NOTIFICATIONS = {
     "order_expired_user": {
         "title": "Buyurtma muddati tugadi",
         "message": "#{order_id} raqamli {order_type} buyurtmangiz boshqa haydovchilar uchun mavjud."
+    },
+    "order_status_update": {
+        "title": "Buyurtma holati yangilandi",
+        "message": "#{order_id} raqamli {order_type} buyurtmangiz endi boshqa haydovchilar uchun mavjud."
+    },
+    "order_released": {
+        "title": "Buyurtma bo'shatildi",
+        "message": "#{order_id} raqamli {order_type} buyurtmasini ko'rib chiqish muddati tugadi. Buyurtma umumiy ro'yxatga qaytarildi."
+    },
+    "order_now_public": {
+        "title": "Buyurtma endi umumiy",
+        "message": "#{order_id} raqamli {order_type} buyurtmangiz endi barcha haydovchilar uchun ko'rinadi."
     },
     
     # Financial notifications
@@ -62,6 +94,44 @@ NOTIFICATIONS = {
     "new_rating": {
         "title": "Yangi baho",
         "message": "Sizga mijoz tomonidan {rating} yulduzli baho berildi."
+    },
+    
+    # Account management notifications
+    "account_blocked": {
+        "title": "Hisob bloklandi",
+        "message": "Haydovchi hisobingiz admin tomonidan bloklandi."
+    },
+    "account_unblocked": {
+        "title": "Hisob blokdan chiqarildi",
+        "message": "Haydovchi hisobingiz blokdan chiqarildi."
+    },
+    "driver_profile_deleted": {
+        "title": "Haydovchi profili o'chirildi",
+        "message": "Haydovchi profilingiz admin tomonidan o'chirildi. Foydalanuvchi hisobingiz faol."
+    },
+    "balance_added": {
+        "title": "Balans to'ldirildi",
+        "message": "Hisobingizga {amount} so'm qo'shildi."
+    },
+    "admin_access_granted": {
+        "title": "Admin huquqi berildi",
+        "message": "Sizga admin huquqi berildi."
+    },
+    "role_updated": {
+        "title": "Rol yangilandi",
+        "message": "{message}"
+    },
+    "account_deactivated": {
+        "title": "Hisob faolsizlantirildi",
+        "message": "Hisobingiz admin tomonidan faolsizlantirildi."
+    },
+    "account_activated": {
+        "title": "Hisob faollashtirildi",
+        "message": "Hisobingiz faollashtirildi."
+    },
+    "password_reset": {
+        "title": "Parol tiklandi",
+        "message": "Parolingiz admin tomonidan tiklandi."
     },
     
     # WebSocket notifications
