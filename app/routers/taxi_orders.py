@@ -13,12 +13,11 @@ from app.utils import (
     calculate_taxi_price,
     create_notification,
     get_last_history_driver_id,
-)
-from app.localization import get_notification_message
     get_or_create_guest_user,
     record_order_acceptance_history,
     send_order_telegram_message,
 )
+from app.localization import get_notification_message
 from app.websocket import manager, convert_decimal_to_float
 
 DEFAULT_PAGE_SIZE = 10
