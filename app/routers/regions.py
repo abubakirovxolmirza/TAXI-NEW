@@ -123,8 +123,9 @@ def calculate_price(
                     detail="Invalid seat_type. Must be 'front' or 'back'"
                 )
         else:
-            # Default to back seat when more than one passenger
-            selected_seat = SeatType.FRONT if total_passengers == 1 else SeatType.BACK
+            # Default to BACK (rear) seat for all cases, including single passenger
+            # Front seat should only be used when explicitly requested
+            selected_seat = SeatType.BACK
         
         # Apply seat-specific pricing when available
         if selected_seat == SeatType.FRONT and pricing.front_seat_price:

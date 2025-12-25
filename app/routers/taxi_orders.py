@@ -52,11 +52,9 @@ async def create_taxi_order(
     # Determine seat type: automatic selection if not provided by client
     seat_type = order_data.seat_type
     if seat_type is None:
-        # Auto-select based on number of passengers
-        if order_data.passengers == 1:
-            seat_type = SeatType.FRONT
-        else:  # 2 or more passengers
-            seat_type = SeatType.BACK
+        # Default to BACK (rear) seat for all cases, including single passenger
+        # Front seat should only be used when explicitly requested
+        seat_type = SeatType.BACK
     
     # Calculate price (district pricing > region pricing > default)
     price = calculate_taxi_price(

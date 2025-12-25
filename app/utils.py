@@ -137,7 +137,9 @@ def calculate_taxi_price(
 
     # Determine seat type if not provided
     if seat_type is None:
-        seat_type = SeatType.FRONT if total_passengers == 1 else SeatType.BACK
+        # Default to BACK (rear) seat for all cases, including single passenger
+        # Front seat should only be used when explicitly requested
+        seat_type = SeatType.BACK
     
     # Convert string to SeatType if needed
     if isinstance(seat_type, str):
@@ -790,7 +792,10 @@ def _build_order_telegram_message(
         )
     if order.note:
         lines.extend(["", f"📝 *Izoh:* {order.note}"])
-    if driver:
+    # Only show driver information for orders that have been accepted (not in PENDING status)
+    # This prevents showing empty/incorrect driver fields for newly created orders
+    from app.models import OrderStatus
+    if driver and order.status != OrderStatus.PENDING:
         driver_phone = driver.user.telephone if driver.user else "-"
         lines.extend(
             [
