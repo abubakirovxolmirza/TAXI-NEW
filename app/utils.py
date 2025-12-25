@@ -2,7 +2,7 @@ import asyncio
 import json
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Tuple, Union, TYPE_CHECKING
 import uuid
@@ -722,8 +722,18 @@ def _build_order_telegram_message(
             return f"{value} so'm"
 
     def _format_schedule(dt: datetime) -> str:
+        """Format datetime in Uzbekistan timezone (UTC+5) for Telegram messages"""
         try:
-            local_dt = dt.astimezone() if dt.tzinfo else dt
+            # Define Uzbekistan timezone (UTC+5)
+            uzbekistan_tz = timezone(timedelta(hours=5))
+            
+            # Convert to Uzbekistan timezone
+            # If datetime is naive, assume it's already in UTC
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            
+            local_dt = dt.astimezone(uzbekistan_tz)
+            
             months = [
                 "yanvar",
                 "fevral",
