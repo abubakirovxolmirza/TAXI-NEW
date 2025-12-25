@@ -741,13 +741,24 @@ def _build_order_telegram_message(
             month_name = months[local_dt.month - 1] if 1 <= local_dt.month <= 12 else local_dt.strftime("%b")
             return f"{local_dt.day:02d}-{month_name} {local_dt.year} • {local_dt:%H:%M}"
         except Exception:
-            return dt.isoformat()
+            # Fallback to a simple readable format if conversion fails
+            try:
+                return f"{dt.day:02d}.{dt.month:02d}.{dt.year} • {dt.hour:02d}:{dt.minute:02d}"
+            except Exception:
+                return str(dt)
 
     from_region = _resolve_region_name(db, order.from_region_id)
     to_region = _resolve_region_name(db, order.to_region_id)
     from_district = _resolve_district_name(db, order.from_district_id)
     to_district = _resolve_district_name(db, order.to_district_id)
-    reja_vaqt = f"{order.date} • {order.time_start}-{order.time_end}"
+    
+    # Format scheduled time in a human-readable way
+    if order.scheduled_datetime:
+        reja_vaqt = _format_schedule(order.scheduled_datetime)
+    else:
+        # Fallback to date and time strings if scheduled_datetime is not available
+        reja_vaqt = f"{order.date} • {order.time_start}-{order.time_end}"
+    
     lines: list[str] = []
     if order_type == "taxi":
         lines.extend(
