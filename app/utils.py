@@ -866,6 +866,8 @@ async def update_order_telegram_message(
     message_id = getattr(order, "telegram_message_id", None)
     if message_id:
         updated = await asyncio.to_thread(_edit_telegram_message, message_id, message)
-        if updated:
-            return message_id
+        # Always return the existing message_id, whether edit succeeded or not
+        # This prevents sending duplicate messages
+        return message_id
+    # Only send a new message if there's no existing telegram_message_id
     return await asyncio.to_thread(_send_telegram_message, message)
