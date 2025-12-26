@@ -470,7 +470,7 @@ async def cancel_taxi_order(
                 )
     
     # Notify user
-    user_notification = get_notification_message("order_cancelled_user", order_id=order.id)
+    user_notification = get_notification_message("order_cancelled_user", order_id=order.id, order_type="taksi")
     create_notification(
         db=db,
         title=user_notification["title"],

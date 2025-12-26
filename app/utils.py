@@ -783,11 +783,9 @@ def _build_order_telegram_message(
                 "",
                 f"👥 *Yo'lovchilar soni:* {order.passengers} ta",
                 "",
-                "⏰ *Reja vaqt:*",
-                reja_vaqt,
+                f"⏰ *Reja vaqt:* {reja_vaqt}",
                 "",
-                "💰 *Narx:*",
-                _format_price(order.price),
+                f"💰 *Narx:* {_format_price(order.price)}",
             ]
         )
     else:
@@ -804,11 +802,9 @@ def _build_order_telegram_message(
                 "",
                 f"🧾 *Yuk turi:* {item_type}",
                 "",
-                "⏰ *Reja vaqt:*",
-                reja_vaqt,
+                f"⏰ *Reja vaqt:* {reja_vaqt}",
                 "",
-                "💰 *Narx:*",
-                _format_price(order.price),
+                f"💰 *Narx:* {_format_price(order.price)}",
             ]
         )
     if order.note:
@@ -820,10 +816,7 @@ def _build_order_telegram_message(
         driver_phone = driver.user.telephone if driver.user else "-"
         lines.extend(
             [
-                "",
-                f"🚗 *Haydovchi:* {driver.full_name}",
-                f"📞 *Haydovchi tel:* {driver_phone}",
-                f"🚙 *Avto:* {driver.car_model} {driver.car_number}",
+                
             ]
         )
     return "\n".join(lines)
