@@ -775,8 +775,8 @@ def _build_order_telegram_message(
             [
                 "🚖 *YANGI TAKSI BUYURTMA*",
                 "",
-                "👤 *Mijoz:*",
-                f"{order.username}",
+                f"👤 *Mijoz:* {order.username}",
+                
                 "",
                 "📍 *Yo'nalish:*",
                 f"{from_region}, {from_district} ➡️ {to_region}, {to_district}",
@@ -794,8 +794,7 @@ def _build_order_telegram_message(
             [
                 "📦 *YANGI YETKAZIB BERISH BUYURTMA*",
                 "",
-                "👤 *Jo'natuvchi:*",
-                f"{order.username}",
+                f"👤 *Jo'natuvchi:* {order.username}",
                 "",
                 "📍 *Yo'nalish:*",
                 f"{from_region}, {from_district} ➡️ {to_region}, {to_district}",
