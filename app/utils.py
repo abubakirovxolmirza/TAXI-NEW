@@ -811,14 +811,7 @@ def _build_order_telegram_message(
         lines.extend(["", f"📝 *Izoh:* {order.note}"])
     # Only show driver information for orders that have been accepted (not in PENDING status)
     # This prevents showing empty/incorrect driver fields for newly created orders
-    from app.models import OrderStatus
-    if driver and order.status != OrderStatus.PENDING:
-        driver_phone = driver.user.telephone if driver.user else "-"
-        lines.extend(
-            [
-                
-            ]
-        )
+    
     return "\n".join(lines)
 
 
