@@ -417,7 +417,7 @@ async def cancel_delivery_order(
                 driver_id=history_driver_id,
                 order_type="delivery",
                 order_id=order.id,
-                action="cancelled_after_accept",
+                action="cancel_after_accept",
             )
         elif previous_status == OrderStatus.PENDING:
             record_order_acceptance_history(
@@ -425,7 +425,7 @@ async def cancel_delivery_order(
                 driver_id=history_driver_id,
                 order_type="delivery",
                 order_id=order.id,
-                action="cancelled_from_pending",
+                action="cancel_from_pending",
             )
     
     db.commit()

@@ -441,7 +441,7 @@ class OrderAcceptanceHistory(Base):
     taxi_order_id = Column(Integer, ForeignKey("taxi_orders.id"), nullable=True)
     delivery_order_id = Column(Integer, ForeignKey("delivery_orders.id"), nullable=True)
     received_at = Column(DateTime(timezone=True), server_default=func.now())
-    action = Column(String(20), nullable=False)  # "received", "ignored", "declined"
+    action = Column(String(20), nullable=False)  # "received", "accepted", "returned_to_pending", "cancel_after_accept", "cancel_from_pending"
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
