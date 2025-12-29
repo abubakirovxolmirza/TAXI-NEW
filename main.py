@@ -4,7 +4,7 @@ from app.database import engine, Base
 from app.routers import (
     auth, taxi_orders, delivery_orders, driver,
     admin, ratings, regions, notifications, feedback, websocket,
-    admin_orders, regions_admin, bonus, order_history, pending_time, public_orders, permissions
+    admin_orders, regions_admin, bonus, order_history, pending_time, public_orders, permissions, system_settings
 )
 from app.config import settings
 from app.websocket import manager
@@ -70,6 +70,7 @@ app.include_router(order_history.router)  # Order acceptance history
 app.include_router(pending_time.router)  # Pending time management
 app.include_router(public_orders.router)  # Public orders
 app.include_router(permissions.router)  # Permissions management
+app.include_router(system_settings.router)  # System settings (seat visibility timeout, etc.)
 
 
 @app.get("/")

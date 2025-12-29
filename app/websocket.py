@@ -6,10 +6,22 @@ from fastapi import WebSocket, WebSocketDisconnect
 from typing import Any, Coroutine, Dict, List, Optional, Set
 import json
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 import redis.asyncio as redis
 from app.config import settings
+
+# Uzbekistan timezone (UTC+5)
+UZBEKISTAN_TZ = timezone(timedelta(hours=5))
+
+
+def get_uzbek_time(dt: Optional[datetime] = None) -> datetime:
+    """Convert datetime to Uzbekistan timezone (UTC+5). If dt is None, return current Uzbek time."""
+    if dt is None:
+        dt = datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(UZBEKISTAN_TZ)
 
 
 class ConnectionManager:
@@ -330,7 +342,7 @@ class ConnectionManager:
                 pass
         
         # Local locking (for standalone mode)
-        current_time = datetime.now(timezone.utc)
+        current_time = get_uzbek_time()
         if order_id in self.order_locks:
             locked_driver_id, lock_time = self.order_locks[order_id]
             if (current_time - lock_time).total_seconds() < 5:

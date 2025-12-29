@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import TaxiOrder, DeliveryOrder, OrderStatus
-from app.utils import create_notification
+from app.utils import create_notification, get_seat_visibility_timeout_minutes, get_uzbek_time
 from app.localization import get_notification_message
 from app.websocket import manager
 from app.routers.driver import (
@@ -14,19 +14,25 @@ from app.routers.driver import (
     _serialize_pending_order_for_driver,
 )
 
+# Uzbekistan timezone (UTC+5)
+UZBEKISTAN_TZ = timezone(timedelta(hours=5))
+
 
 async def check_unconfirmed_orders():
     """
     Background task to check for unconfirmed orders and return them to pending state
-    Runs every minute to check for orders that were accepted but not confirmed within 15 minutes
+    Runs every minute to check for orders that were accepted but not confirmed within the configured timeout
     """
     while True:
         try:
             db: Session = SessionLocal()
             
-            # Get current time
-            current_time = datetime.now(timezone.utc)
-            expiration_time = current_time - timedelta(minutes=15)
+            # Get current time in Uzbekistan timezone
+            current_time = get_uzbek_time()
+            
+            # Get configurable timeout (default: 15 minutes)
+            timeout_minutes = get_seat_visibility_timeout_minutes(db)
+            expiration_time = current_time - timedelta(minutes=timeout_minutes)
             
             # Find taxi orders that are accepted but not confirmed and expired
             expired_taxi_orders = db.query(TaxiOrder).filter(

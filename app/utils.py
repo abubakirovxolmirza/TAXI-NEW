@@ -35,6 +35,34 @@ if TYPE_CHECKING:
 DEFAULT_SERVICE_FEE_PERCENTAGE = Decimal("10.00")  # 10%
 MONEY_QUANTIZE = Decimal("0.01")
 
+# Uzbekistan timezone (UTC+5)
+UZBEKISTAN_TZ = timezone(timedelta(hours=5))
+DEFAULT_SEAT_VISIBILITY_TIMEOUT_MINUTES = 15  # Default timeout for seat visibility
+
+
+def get_uzbek_time(dt: Optional[datetime] = None) -> datetime:
+    """Convert datetime to Uzbekistan timezone (UTC+5). If dt is None, return current Uzbek time."""
+    if dt is None:
+        dt = datetime.now(timezone.utc)
+    # If datetime is naive, assume it's already in UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(UZBEKISTAN_TZ)
+
+
+def get_seat_visibility_timeout_minutes(db: Session) -> int:
+    """Get seat visibility timeout from system settings (in minutes)"""
+    setting = db.query(SystemSettings).filter(
+        SystemSettings.setting_key == "seat_visibility_timeout_minutes"
+    ).first()
+    
+    if setting:
+        try:
+            return int(setting.setting_value)
+        except (ValueError, TypeError):
+            pass
+    return DEFAULT_SEAT_VISIBILITY_TIMEOUT_MINUTES
+
 
 def _quantize_money(value: Decimal) -> Decimal:
     """Round monetary values to 2 decimal places using bankers-friendly rounding."""
@@ -228,7 +256,7 @@ def record_order_acceptance_history(
         taxi_order_id=order_id if order_type == "taxi" else None,
         delivery_order_id=order_id if order_type == "delivery" else None,
         action=action,
-        received_at=datetime.now(timezone.utc),
+        received_at=get_uzbek_time(),
     )
     db.add(history)
     return history
@@ -441,7 +469,7 @@ def apply_service_fee_refund(
 def _serialize_notification(notification: Notification) -> dict:
     created_at = notification.created_at
     if not isinstance(created_at, datetime):
-        created_at = datetime.now(timezone.utc)
+        created_at = get_uzbek_time()
     return {
         "id": notification.id,
         "title": notification.title,
@@ -500,7 +528,7 @@ def dispatch_driver_status_event(
     if not user_id or not normalized_status:
         return
 
-    timestamp_token = int(datetime.now(timezone.utc).timestamp() * 1_000_000)
+    timestamp_token = int(get_uzbek_time().timestamp() * 1_000_000)
     event_id = f"driver_status:{user_id}:{timestamp_token}"
     base_payload = {
         "type": "driver_status",
@@ -724,15 +752,8 @@ def _build_order_telegram_message(
     def _format_schedule(dt: datetime) -> str:
         """Format datetime in Uzbekistan timezone (UTC+5) for Telegram messages"""
         try:
-            # Define Uzbekistan timezone (UTC+5)
-            uzbekistan_tz = timezone(timedelta(hours=5))
-            
             # Convert to Uzbekistan timezone
-            # If datetime is naive, assume it's already in UTC
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            
-            local_dt = dt.astimezone(uzbekistan_tz)
+            local_dt = get_uzbek_time(dt)
             
             months = [
                 "yanvar",
@@ -771,6 +792,15 @@ def _build_order_telegram_message(
     
     lines: list[str] = []
     if order_type == "taxi":
+        # Format seat type
+        seat_label = "-"
+        if hasattr(order, 'seat_type') and order.seat_type:
+            from app.models import SeatType
+            if order.seat_type == SeatType.FRONT:
+                seat_label = "Old o'rindiq (front)"
+            elif order.seat_type == SeatType.BACK:
+                seat_label = "Orqa o'rindiq (back)"
+        
         lines.extend(
             [
                 "🚖 *YANGI TAKSI BUYURTMA*",
@@ -782,6 +812,7 @@ def _build_order_telegram_message(
                 f"{from_region}, {from_district} ➡️ {to_region}, {to_district}",
                 "",
                 f"👥 *Yo'lovchilar soni:* {order.passengers} ta",
+                f"💺 *O'rindiq:* {seat_label}",
                 "",
                 f"⏰ *Reja vaqt:* {reja_vaqt}",
                 "",
