@@ -1,7 +1,7 @@
 """Add default seat visibility timeout setting
 
 Revision ID: add_seat_visibility_timeout
-Revises: 
+Revises: merge_permission_refactor_2025
 Create Date: 2025-12-29
 
 """
@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 # revision identifiers, used by Alembic.
 revision = 'add_seat_visibility_timeout'
-down_revision = None  # Update this to point to the latest migration
+down_revision = 'merge_permission_refactor_2025'
 branch_labels = None
 depends_on = None
 
