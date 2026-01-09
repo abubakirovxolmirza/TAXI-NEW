@@ -265,6 +265,7 @@ def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], 
     }
     if isinstance(order, TaxiOrder):
         base["passengers"] = order.passengers
+        base["seat_type"] = _enum_value(order.seat_type)
     if isinstance(order, DeliveryOrder):
         base["item_type"] = _enum_value(order.item_type)
     return base
@@ -329,6 +330,7 @@ def _serialize_taxi_order_for_passenger(order: TaxiOrder) -> dict:
         "pickup_longitude": order.pickup_longitude,
         "pickup_address": order.pickup_address,
         "passengers": order.passengers,
+        "seat_type": _enum_value(order.seat_type),
         "is_mail_delivery": order.is_mail_delivery,
         "date": order.date,
         "time_start": order.time_start,
