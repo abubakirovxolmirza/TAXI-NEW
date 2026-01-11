@@ -60,8 +60,8 @@ def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[
     return safe_limit, safe_offset
 
 
-def _parse_region_ids_csv(raw_ids: Optional[str]) -> Set[int]:
-    """Convert a comma-separated list of region ids into a set of ints."""
+def _parse_ids_csv(raw_ids: Optional[str]) -> Set[int]:
+    """Convert a comma-separated list of integer IDs into a set."""
     if not raw_ids:
         return set()
     candidates = (raw_ids or "").split(",")
@@ -428,9 +428,15 @@ async def _collect_available_orders_for_driver(
     driver: Driver,
     db: Session,
     from_region_id: Optional[int] = None,
+    from_region_ids: Optional[Set[int]] = None,
     to_region_id: Optional[int] = None,
     to_region_ids: Optional[Set[int]] = None,
     region_id: Optional[int] = None,
+    from_district_id: Optional[int] = None,
+    from_district_ids: Optional[Set[int]] = None,
+    to_district_id: Optional[int] = None,
+    to_district_ids: Optional[Set[int]] = None,
+    district_id: Optional[int] = None,
     order_type: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
@@ -441,23 +447,41 @@ async def _collect_available_orders_for_driver(
     - Excludes orders held/confirmed by other drivers.
     - Excludes orders the current driver cancelled/rejected.
     """
-    normalized_order_type: Optional[str] = None
+    selected_order_types: Set[str] = set()
     if order_type:
-        candidate = order_type.strip().lower()
-        if candidate in {"taxi", "delivery"}:
-            normalized_order_type = candidate
-        elif candidate not in {"", "all"}:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="order_type must be either 'taxi' or 'delivery'",
-            )
+        for token in order_type.split(","):
+            candidate = token.strip().lower()
+            if not candidate or candidate == "all":
+                continue
+            if candidate not in {"taxi", "delivery"}:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="order_type must contain only 'taxi' and/or 'delivery'",
+                )
+            selected_order_types.add(candidate)
 
-    include_taxi = normalized_order_type in (None, "taxi")
-    include_delivery = normalized_order_type in (None, "delivery")
-    effective_from_region_id = from_region_id or region_id
+    include_taxi = not selected_order_types or "taxi" in selected_order_types
+    include_delivery = not selected_order_types or "delivery" in selected_order_types
+
+    effective_from_region_ids: Set[int] = set(from_region_ids or set())
+    if from_region_id:
+        effective_from_region_ids.add(from_region_id)
+    if region_id:
+        effective_from_region_ids.add(region_id)
+
     effective_to_region_ids: Set[int] = set(to_region_ids or set())
     if to_region_id:
         effective_to_region_ids.add(to_region_id)
+
+    effective_from_district_ids: Set[int] = set(from_district_ids or set())
+    if from_district_id:
+        effective_from_district_ids.add(from_district_id)
+    if district_id:
+        effective_from_district_ids.add(district_id)
+
+    effective_to_district_ids: Set[int] = set(to_district_ids or set())
+    if to_district_id:
+        effective_to_district_ids.add(to_district_id)
     driver_has_accepted_order = _driver_has_accepted_order(db, driver.id)
     limit, offset = _normalize_pagination(limit, offset)
     fetch_size = limit + offset + 1
@@ -472,14 +496,24 @@ async def _collect_available_orders_for_driver(
             or_(TaxiOrder.is_confirmed.is_(False), TaxiOrder.driver_id == driver.id),
         )
 
-        if effective_from_region_id:
+        if effective_from_region_ids:
             taxi_query = taxi_query.filter(
-                TaxiOrder.from_region_id == effective_from_region_id,
+                TaxiOrder.from_region_id.in_(effective_from_region_ids),
             )
 
         if effective_to_region_ids:
             taxi_query = taxi_query.filter(
                 TaxiOrder.to_region_id.in_(effective_to_region_ids),
+            )
+
+        if effective_from_district_ids:
+            taxi_query = taxi_query.filter(
+                TaxiOrder.from_district_id.in_(effective_from_district_ids),
+            )
+
+        if effective_to_district_ids:
+            taxi_query = taxi_query.filter(
+                TaxiOrder.to_district_id.in_(effective_to_district_ids),
             )
 
         if not driver_has_accepted_order:
@@ -502,14 +536,24 @@ async def _collect_available_orders_for_driver(
             or_(DeliveryOrder.is_confirmed.is_(False), DeliveryOrder.driver_id == driver.id),
         )
 
-        if effective_from_region_id:
+        if effective_from_region_ids:
             delivery_query = delivery_query.filter(
-                DeliveryOrder.from_region_id == effective_from_region_id,
+                DeliveryOrder.from_region_id.in_(effective_from_region_ids),
             )
 
         if effective_to_region_ids:
             delivery_query = delivery_query.filter(
                 DeliveryOrder.to_region_id.in_(effective_to_region_ids),
+            )
+
+        if effective_from_district_ids:
+            delivery_query = delivery_query.filter(
+                DeliveryOrder.from_district_id.in_(effective_from_district_ids),
+            )
+
+        if effective_to_district_ids:
+            delivery_query = delivery_query.filter(
+                DeliveryOrder.to_district_id.in_(effective_to_district_ids),
             )
 
         if not driver_has_accepted_order:
@@ -1109,9 +1153,15 @@ def get_my_orders(
 @router.get("/orders/active")
 async def get_active_orders(
     from_region_id: Optional[int] = None,
+    from_region_ids: Optional[str] = Query(None),
     to_region_id: Optional[int] = None,
     to_region_ids: Optional[str] = Query(None),
     region_id: Optional[int] = None,
+    from_district_id: Optional[int] = None,
+    from_district_ids: Optional[str] = Query(None),
+    to_district_id: Optional[int] = None,
+    to_district_ids: Optional[str] = Query(None),
+    district_id: Optional[int] = None,
     order_type: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
@@ -1136,9 +1186,15 @@ async def get_active_orders(
         driver,
         db,
         from_region_id=from_region_id,
+        from_region_ids=_parse_ids_csv(from_region_ids),
         to_region_id=to_region_id,
-        to_region_ids=_parse_region_ids_csv(to_region_ids),
+        to_region_ids=_parse_ids_csv(to_region_ids),
         region_id=region_id,
+        from_district_id=from_district_id,
+        from_district_ids=_parse_ids_csv(from_district_ids),
+        to_district_id=to_district_id,
+        to_district_ids=_parse_ids_csv(to_district_ids),
+        district_id=district_id,
         order_type=order_type,
         limit=limit,
         offset=offset,
@@ -1213,9 +1269,15 @@ def get_order_history(
 @router.get("/orders/new")
 async def get_new_orders(
     from_region_id: Optional[int] = None,
+    from_region_ids: Optional[str] = Query(None),
     to_region_id: Optional[int] = None,
     to_region_ids: Optional[str] = Query(None),
     region_id: Optional[int] = None,
+    from_district_id: Optional[int] = None,
+    from_district_ids: Optional[str] = Query(None),
+    to_district_id: Optional[int] = None,
+    to_district_ids: Optional[str] = Query(None),
+    district_id: Optional[int] = None,
     order_type: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
@@ -1235,9 +1297,15 @@ async def get_new_orders(
         driver,
         db,
         from_region_id=from_region_id,
+        from_region_ids=_parse_ids_csv(from_region_ids),
         to_region_id=to_region_id,
-        to_region_ids=_parse_region_ids_csv(to_region_ids),
+        to_region_ids=_parse_ids_csv(to_region_ids),
         region_id=region_id,
+        from_district_id=from_district_id,
+        from_district_ids=_parse_ids_csv(from_district_ids),
+        to_district_id=to_district_id,
+        to_district_ids=_parse_ids_csv(to_district_ids),
+        district_id=district_id,
         order_type=order_type,
         limit=limit,
         offset=offset,

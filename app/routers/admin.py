@@ -923,10 +923,10 @@ def delete_user_permanently(
 def reset_user_password(
     user_id: int,
     new_password: str,
-    current_user: User = Depends(get_current_superadmin),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Reset user password (superadmin only)"""
+    """Reset user password (admin or superadmin)"""
     from app.auth import get_password_hash
     
     user = db.query(User).filter(User.id == user_id).first()
