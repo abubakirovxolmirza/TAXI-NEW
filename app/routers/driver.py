@@ -638,6 +638,7 @@ async def _collect_available_orders_for_driver(
                     if order.scheduled_datetime
                     else None,
                     "created_at": order.created_at.isoformat(),
+                    "note": order.note,
                     "is_confirmed": order.is_confirmed,
                     "confirmed_at": order.confirmed_at.isoformat()
                     if order.confirmed_at
