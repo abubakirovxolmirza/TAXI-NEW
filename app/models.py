@@ -1,9 +1,11 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, Enum as SQLEnum, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, Enum as SQLEnum, Text, BigInteger, Index, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 from decimal import Decimal
 import enum
+import uuid
 
 
 class UserRole(str, enum.Enum):
@@ -49,6 +51,14 @@ class ItemType(str, enum.Enum):
 class SeatType(str, enum.Enum):
     FRONT = "front"
     BACK = "back"
+
+
+class TopUpStatus(str, enum.Enum):
+    CREATED = "CREATED"
+    PREPARED = "PREPARED"
+    PAID = "PAID"
+    FAILED = "FAILED"
+    CANCELED = "CANCELED"
 
 
 class User(Base):
@@ -460,3 +470,51 @@ class Bonus(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class TopUpTransaction(Base):
+    __tablename__ = "topup_transactions"
+    __table_args__ = (
+        UniqueConstraint("merchant_trans_id", name="uq_topup_merchant_trans_id"),
+        UniqueConstraint("click_trans_id", name="uq_topup_click_trans_id"),
+        UniqueConstraint("merchant_prepare_id", name="uq_topup_merchant_prepare_id"),
+        UniqueConstraint("merchant_confirm_id", name="uq_topup_merchant_confirm_id"),
+        Index("ix_topup_driver_created_at", "driver_id", "created_at"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    merchant_trans_id = Column(String(64), nullable=False)
+    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
+    amount = Column(BigInteger, nullable=False)
+    status = Column(
+        SQLEnum(
+            TopUpStatus,
+            name="topup_status",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+    )
+    click_trans_id = Column(String(64), nullable=True)
+    merchant_prepare_id = Column(String(64), nullable=True)
+    merchant_confirm_id = Column(String(64), nullable=True)
+    error_code = Column(Integer, nullable=True)
+    raw_prepare = Column(JSONB, nullable=True)
+    raw_complete = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+
+    driver = relationship("Driver", foreign_keys=[driver_id])
+
+
+class PaymentLog(Base):
+    __tablename__ = "payment_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    kind = Column(String(20), nullable=False)
+    merchant_trans_id = Column(String(64), nullable=False)
+    click_trans_id = Column(String(64), nullable=True)
+    payload = Column(JSONB, nullable=False)
+    response = Column(JSONB, nullable=True)
+    request_id = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

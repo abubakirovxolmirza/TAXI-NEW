@@ -39,6 +39,15 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = []
     CORS_ALLOW_ORIGIN_REGEX: Optional[str] = None
 
+    # CLICK (Uzbekistan) payment integration
+    CLICK_SERVICE_ID: Optional[int] = None
+    CLICK_MERCHANT_ID: Optional[int] = None
+    CLICK_SECRET_KEY: Optional[str] = None
+    CLICK_MERCHANT_USER_ID: Optional[int] = None
+    CLICK_ALLOWED_IPS: Optional[str] = None
+    CLICK_VERIFY_SIGNATURE: Optional[bool] = None
+    CLICK_DISABLE_SIGN_CHECK: Optional[bool] = None
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def split_cors_origins(cls, value):

@@ -6,6 +6,7 @@ from app.routers import (
     admin, ratings, regions, notifications, feedback, websocket,
     admin_orders, regions_admin, bonus, order_history, pending_time, public_orders, permissions, system_settings
 )
+from app.api.routes import topups, click_callbacks
 from app.config import settings
 from app.websocket import manager
 from app.tasks import start_background_tasks
@@ -71,6 +72,8 @@ app.include_router(pending_time.router)  # Pending time management
 app.include_router(public_orders.router)  # Public orders
 app.include_router(permissions.router)  # Permissions management
 app.include_router(system_settings.router)  # System settings (seat visibility timeout, etc.)
+app.include_router(topups.router)  # Click topups
+app.include_router(click_callbacks.router)  # Click callbacks
 
 
 @app.get("/")
@@ -91,4 +94,3 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=settings.DEBUG)
-
