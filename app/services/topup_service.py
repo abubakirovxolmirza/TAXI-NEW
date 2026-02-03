@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any, Mapping, Optional
 
 from sqlalchemy import select, update
@@ -20,6 +20,9 @@ class ClickErrorCodes:
     ALREADY_PAID = -4
     INVALID_ACTION = -5
     REQUEST_ERROR = -6
+
+
+MIN_CLICK_AMOUNT = Decimal("1000.00")
 
 
 ERROR_NOTES = {
@@ -45,21 +48,27 @@ def generate_confirm_id() -> str:
     return f"conf_{uuid.uuid4()}"
 
 
-def build_payment_url(amount: int, merchant_trans_id: str) -> str:
+def build_payment_url(amount: Decimal, merchant_trans_id: str) -> str:
+    amount_str = str(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
     return (
         "https://my.click.uz/services/pay"
         f"?service_id={settings.click_service_id}"
         f"&merchant_id={settings.click_merchant_id}"
-        f"&amount={amount}"
+        f"&amount={amount_str}"
         f"&transaction_param={merchant_trans_id}"
     )
 
 
-def parse_amount(value: Any) -> Optional[int]:
+def parse_amount(value: Any) -> Optional[Decimal]:
     if value is None:
         return None
     try:
-        return int(Decimal(str(value)))
+        raw = str(value)
+        cleaned = raw.replace(" ", "").replace(",", "")
+        amount = Decimal(cleaned)
+        if amount.is_nan():
+            return None
+        return amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     except (InvalidOperation, ValueError, TypeError):
         return None
 
@@ -80,7 +89,7 @@ def utc_now() -> datetime:
 async def create_topup(
     session: AsyncSession,
     driver_id: int,
-    amount: int,
+    amount: Decimal,
 ) -> TopUpTransaction:
     merchant_trans_id = generate_merchant_trans_id(driver_id)
     topup = TopUpTransaction(
@@ -109,6 +118,17 @@ async def lock_topup_by_merchant_id(
     return result.scalar_one_or_none()
 
 
+async def lock_topup_by_click_trans_id(
+    session: AsyncSession, click_trans_id: str
+) -> Optional[TopUpTransaction]:
+    result = await session.execute(
+        select(TopUpTransaction)
+        .where(TopUpTransaction.click_trans_id == click_trans_id)
+        .with_for_update()
+    )
+    return result.scalar_one_or_none()
+
+
 async def lock_driver_by_id(session: AsyncSession, driver_id: int) -> Optional[Driver]:
     result = await session.execute(
         select(Driver).where(Driver.id == driver_id).with_for_update()
@@ -119,7 +139,7 @@ async def lock_driver_by_id(session: AsyncSession, driver_id: int) -> Optional[D
 async def credit_driver_balance(
     session: AsyncSession,
     driver_id: int,
-    amount: int,
+    amount: Decimal,
 ) -> None:
     await session.execute(
         update(Driver)

@@ -475,17 +475,18 @@ class Bonus(Base):
 class TopUpTransaction(Base):
     __tablename__ = "topup_transactions"
     __table_args__ = (
-        UniqueConstraint("merchant_trans_id", name="uq_topup_merchant_trans_id"),
         UniqueConstraint("click_trans_id", name="uq_topup_click_trans_id"),
         UniqueConstraint("merchant_prepare_id", name="uq_topup_merchant_prepare_id"),
         UniqueConstraint("merchant_confirm_id", name="uq_topup_merchant_confirm_id"),
         Index("ix_topup_driver_created_at", "driver_id", "created_at"),
+        Index("ix_topup_account_phone", "account_phone"),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     merchant_trans_id = Column(String(64), nullable=False)
+    account_phone = Column(String(20), nullable=True)
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
-    amount = Column(BigInteger, nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
     status = Column(
         SQLEnum(
             TopUpStatus,
@@ -498,8 +499,8 @@ class TopUpTransaction(Base):
     merchant_prepare_id = Column(String(64), nullable=True)
     merchant_confirm_id = Column(String(64), nullable=True)
     error_code = Column(Integer, nullable=True)
-    raw_prepare = Column(JSONB, nullable=True)
-    raw_complete = Column(JSONB, nullable=True)
+    raw_prepare_payload = Column(JSONB, nullable=True)
+    raw_complete_payload = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     paid_at = Column(DateTime(timezone=True), nullable=True)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import uuid
+from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -18,14 +19,14 @@ router = APIRouter(prefix="/api", tags=["topups"])
 
 class TopUpCreateRequest(BaseModel):
     driver_id: int = Field(..., gt=0)
-    amount: int = Field(..., gt=0)
+    amount: Decimal = Field(..., ge=Decimal("1000.00"))
 
     @field_validator("amount")
     @classmethod
-    def validate_amount(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("amount must be > 0")
-        return value
+    def validate_amount(cls, value: Decimal) -> Decimal:
+        if value < Decimal("1000.00"):
+            raise ValueError("amount must be >= 1000")
+        return value.quantize(Decimal("0.01"))
 
 
 class TopUpCreateResponse(BaseModel):
@@ -36,7 +37,7 @@ class TopUpCreateResponse(BaseModel):
 class TopUpHistoryItem(BaseModel):
     id: uuid.UUID
     merchant_trans_id: str
-    amount: int
+    amount: Decimal
     status: str
     click_trans_id: str | None
     merchant_prepare_id: str | None
