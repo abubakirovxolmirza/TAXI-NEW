@@ -6,7 +6,7 @@ from app.routers import (
     admin, ratings, regions, notifications, feedback, websocket,
     admin_orders, regions_admin, bonus, order_history, pending_time, public_orders, permissions, system_settings
 )
-from app.api.routes import topups, click_callbacks
+from app.api.routes import topups, click_callbacks, click_admin
 from app.config import settings
 from app.websocket import manager
 from app.tasks import start_background_tasks
@@ -74,6 +74,7 @@ app.include_router(permissions.router)  # Permissions management
 app.include_router(system_settings.router)  # System settings (seat visibility timeout, etc.)
 app.include_router(topups.router)  # Click topups
 app.include_router(click_callbacks.router)  # Click callbacks
+app.include_router(click_admin.router)  # Admin click history
 
 
 @app.get("/")
