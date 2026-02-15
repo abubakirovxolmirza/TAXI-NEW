@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
-from app.models import Region, District, Pricing, DistrictPricing, SeatType, User
+from app.models import Region, District, Pricing, DistrictPricing, SeatType, Tariff, User
 from app.schemas import (
     RegionResponse, RegionCreate, DistrictResponse, DistrictCreate, PricingResponse,
     RegionCreateWithPricing, DistrictCreateWithPricing,
@@ -36,6 +36,7 @@ def get_pricing(
     from_region_id: Optional[int] = None,
     to_region_id: Optional[int] = None,
     service_type: Optional[str] = None,
+    tariff: Optional[Tariff] = None,
     db: Session = Depends(get_db)
 ):
     """Get pricing for routes. Clients can view all prices or filter by route and service type."""
@@ -54,6 +55,15 @@ def get_pricing(
                 detail="Invalid service_type. Must be 'taxi' or 'delivery'"
             )
         query = query.filter(Pricing.service_type == service_type)
+
+    if service_type == "delivery" and tariff and tariff != Tariff.STANDARD:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Delivery pricing supports only standard tariff"
+        )
+
+    if tariff:
+        query = query.filter(Pricing.tariff == tariff)
     
     pricing = query.all()
     return pricing
@@ -64,6 +74,7 @@ def calculate_price(
     from_region_id: int,
     to_region_id: int,
     service_type: str,
+    tariff: Tariff = Tariff.STANDARD,
     passengers: Optional[int] = None,
     seat_type: Optional[str] = None,
     from_district_id: Optional[int] = None,
@@ -76,6 +87,12 @@ def calculate_price(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid service_type. Must be 'taxi' or 'delivery'"
         )
+
+    if service_type == "delivery" and tariff != Tariff.STANDARD:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Delivery pricing supports only standard tariff"
+        )
     
     pricing = None
     pricing_level = "default"
@@ -86,6 +103,7 @@ def calculate_price(
             DistrictPricing.from_district_id == from_district_id,
             DistrictPricing.to_district_id == to_district_id,
             DistrictPricing.service_type == service_type,
+            DistrictPricing.tariff == tariff,
             DistrictPricing.is_active == True
         ).first()
         if pricing:
@@ -97,6 +115,7 @@ def calculate_price(
             Pricing.from_region_id == from_region_id,
             Pricing.to_region_id == to_region_id,
             Pricing.service_type == service_type,
+            Pricing.tariff == tariff,
             Pricing.is_active == True
         ).first()
         if pricing:
@@ -161,6 +180,7 @@ def calculate_price(
             "from_district_id": from_district_id,
             "to_district_id": to_district_id,
             "service_type": service_type,
+            "tariff": tariff.value,
             "base_price": str(base_price),
             "passengers": total_passengers,
             "discount_percentage": str(discount),
@@ -177,6 +197,7 @@ def calculate_price(
             "from_district_id": from_district_id,
             "to_district_id": to_district_id,
             "service_type": service_type,
+            "tariff": tariff.value,
             "base_price": str(base_price),
             "passengers": passengers,
             "seat_type": selected_seat.value if selected_seat else None,

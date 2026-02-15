@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
 from typing import List, Optional
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal
 from app.database import get_db
 from app.models import (
@@ -10,6 +10,7 @@ from app.models import (
     Driver,
     DriverApplication,
     ApplicationStatus,
+    Tariff,
     UserRole,
     TaxiOrder,
     DeliveryOrder,
@@ -27,7 +28,8 @@ from app.schemas import (
     BalanceAdd, BalanceTransactionResponse, BroadcastMessage,
     FeedbackResponse, UserResponse, UserRoleUpdate,
     BonusBallUpdate, BonusBallUserResponse,
-    ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse
+    ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse,
+    DriverVipUpdate, DriverBrendUpdate, DriverTariffUpdate,
 )
 from app.auth import get_current_admin, get_current_superadmin
 from app.utils import (
@@ -236,6 +238,79 @@ def get_all_drivers(
     """Get all drivers"""
     drivers = db.query(Driver).all()
     return drivers
+
+
+@router.put("/drivers/{driver_id}/vip", response_model=DriverResponse)
+def update_driver_vip(
+    driver_id: int,
+    update_data: DriverVipUpdate,
+    current_user: User = Depends(get_current_superadmin),
+    db: Session = Depends(get_db),
+):
+    """Update driver's VIP status with expiration in days (SUPERADMIN only)."""
+    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver not found"
+        )
+
+    if update_data.vip:
+        driver.vip = True
+        driver.vip_expires_at = datetime.now(timezone.utc) + timedelta(days=update_data.vip_days)
+    else:
+        driver.vip = False
+        driver.vip_expires_at = None
+
+    db.commit()
+    db.refresh(driver)
+
+    return driver
+
+
+@router.put("/drivers/{driver_id}/brend", response_model=DriverResponse)
+def update_driver_brend(
+    driver_id: int,
+    update_data: DriverBrendUpdate,
+    current_user: User = Depends(get_current_superadmin),
+    db: Session = Depends(get_db),
+):
+    """Update driver's brend flag (SUPERADMIN only)."""
+    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver not found"
+        )
+
+    driver.brend = update_data.brend
+    db.commit()
+    db.refresh(driver)
+    return driver
+
+
+@router.put("/drivers/{driver_id}/tariff", response_model=DriverResponse)
+def update_driver_tariff(
+    driver_id: int,
+    update_data: DriverTariffUpdate,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Update driver's tariff (ADMIN or SUPERADMIN only)."""
+    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver not found"
+        )
+
+    driver.tariff = update_data.tariff
+    db.commit()
+    db.refresh(driver)
+    return driver
 
 
 @router.post("/drivers/{driver_id}/block")
@@ -486,6 +561,7 @@ def create_pricing(
         Pricing.from_region_id == pricing_data.from_region_id,
         Pricing.to_region_id == pricing_data.to_region_id,
         Pricing.service_type == pricing_data.service_type,
+        Pricing.tariff == pricing_data.tariff,
         Pricing.is_active == True
     ).first()
     
@@ -520,6 +596,11 @@ def update_pricing(
         )
     
     update_data = pricing_data.dict(exclude_unset=True)
+    if pricing.service_type == "delivery" and update_data.get("tariff") not in (None, Tariff.STANDARD):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Delivery pricing supports only standard tariff"
+        )
     for key, value in update_data.items():
         setattr(pricing, key, value)
     

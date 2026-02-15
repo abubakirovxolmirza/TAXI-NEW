@@ -103,6 +103,7 @@ async def make_taxi_order_public(
         "from_region_id": order.from_region_id,
         "to_region_id": order.to_region_id,
         "passengers": order.passengers,
+        "tariff": order.tariff.value if order.tariff else None,
         "price": float(order.price),
         "driver_earnings": float(order.driver_earnings),
     }

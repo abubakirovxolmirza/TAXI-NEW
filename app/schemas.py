@@ -2,7 +2,7 @@ from pydantic import BaseModel, validator, Field
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
-from app.models import UserRole, Language, Gender, OrderStatus, ApplicationStatus, ItemType, SeatType
+from app.models import UserRole, Language, Gender, OrderStatus, ApplicationStatus, ItemType, SeatType, Tariff
 
 
 # User Schemas
@@ -172,6 +172,7 @@ class DriverBonusInfo(BaseModel):
     full_name: str
     car_model: str
     car_number: str
+    tariff: Tariff
 
     class Config:
         from_attributes = True
@@ -253,6 +254,7 @@ class TaxiOrderCreate(BaseModel):
     passengers: int = Field(..., ge=1, le=4)
     client_gender: Optional[Gender] = None  # Client's gender for this order (not required)
     seat_type: Optional[SeatType] = None  # front or back (auto-selected if not provided)
+    tariff: Tariff = Tariff.STANDARD
     is_mail_delivery: bool = False  # True if sending package/item instead of passenger
     date: str  # dd.mm.yyyy
     time_start: str  # HH:MM
@@ -280,6 +282,7 @@ class TaxiOrderUpdate(BaseModel):
     passengers: Optional[int] = Field(None, ge=1, le=4)
     client_gender: Optional[Gender] = None
     seat_type: Optional[SeatType] = None
+    tariff: Optional[Tariff] = None
     is_mail_delivery: Optional[bool] = None
     date: Optional[str] = None
     time_start: Optional[str] = None
@@ -307,6 +310,7 @@ class TaxiOrderResponse(BaseModel):
     passengers: int
     client_gender: Optional[Gender]
     seat_type: Optional[SeatType]
+    tariff: Tariff
     is_mail_delivery: bool
     date: str
     time_start: str
@@ -467,16 +471,39 @@ class DriverResponse(BaseModel):
     full_name: str
     car_model: str
     car_number: str
+    tariff: Tariff
     license_photo: str
     car_photo: Optional[str]
     tex_pas: Optional[str]
     rating: Decimal
     balance: Decimal
+    vip: bool
+    vip_expires_at: Optional[datetime]
+    brend: bool
     is_blocked: bool
     created_at: datetime
     
     class Config:
         from_attributes = True
+
+
+class DriverVipUpdate(BaseModel):
+    vip: bool
+    vip_days: Optional[int] = Field(None, ge=1)
+
+    @validator("vip_days", always=True)
+    def validate_vip_days(cls, v, values):
+        if values.get("vip") and v is None:
+            raise ValueError("vip_days is required when vip is true")
+        return v
+
+
+class DriverBrendUpdate(BaseModel):
+    brend: bool
+
+
+class DriverTariffUpdate(BaseModel):
+    tariff: Tariff
 
 
 class DriverStatistics(BaseModel):
@@ -516,6 +543,7 @@ class PricingCreate(BaseModel):
     from_region_id: int
     to_region_id: int
     service_type: str  # "taxi" or "delivery"
+    tariff: Tariff = Tariff.STANDARD
     base_price: Decimal
     front_seat_price: Optional[Decimal] = None
     back_seat_price: Optional[Decimal] = None
@@ -524,8 +552,15 @@ class PricingCreate(BaseModel):
     discount_3_passengers: Decimal = Decimal("0.00")
     discount_full_car: Decimal = Decimal("0.00")
 
+    @validator("tariff")
+    def validate_tariff_for_service_type(cls, v, values):
+        if values.get("service_type") == "delivery" and v != Tariff.STANDARD:
+            raise ValueError("Delivery pricing supports only standard tariff")
+        return v
+
 
 class PricingUpdate(BaseModel):
+    tariff: Optional[Tariff] = None
     base_price: Optional[Decimal] = None
     front_seat_price: Optional[Decimal] = None
     back_seat_price: Optional[Decimal] = None
@@ -540,6 +575,7 @@ class PricingResponse(BaseModel):
     from_region_id: int
     to_region_id: int
     service_type: str
+    tariff: Tariff
     base_price: Decimal
     front_seat_price: Optional[Decimal]
     back_seat_price: Optional[Decimal]
@@ -592,6 +628,7 @@ class DistrictPricingCreate(BaseModel):
     from_district_id: int
     to_district_id: int
     service_type: str  # "taxi" or "delivery"
+    tariff: Tariff = Tariff.STANDARD
     base_price: Decimal
     front_seat_price: Optional[Decimal] = None
     back_seat_price: Optional[Decimal] = None
@@ -600,8 +637,15 @@ class DistrictPricingCreate(BaseModel):
     discount_3_passengers: Decimal = Decimal("0.00")
     discount_full_car: Decimal = Decimal("0.00")
 
+    @validator("tariff")
+    def validate_tariff_for_service_type(cls, v, values):
+        if values.get("service_type") == "delivery" and v != Tariff.STANDARD:
+            raise ValueError("Delivery pricing supports only standard tariff")
+        return v
+
 
 class DistrictPricingUpdate(BaseModel):
+    tariff: Optional[Tariff] = None
     base_price: Optional[Decimal] = None
     front_seat_price: Optional[Decimal] = None
     back_seat_price: Optional[Decimal] = None
@@ -616,6 +660,7 @@ class DistrictPricingResponse(BaseModel):
     from_district_id: int
     to_district_id: int
     service_type: str
+    tariff: Tariff
     base_price: Decimal
     front_seat_price: Optional[Decimal]
     back_seat_price: Optional[Decimal]

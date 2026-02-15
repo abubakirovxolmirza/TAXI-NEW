@@ -53,6 +53,13 @@ class SeatType(str, enum.Enum):
     BACK = "back"
 
 
+class Tariff(str, enum.Enum):
+    STANDARD = "standard"
+    COMFORT = "comfort"
+    COMFORT_PLUS = "comfort_plus"
+    BUSINESS = "business"
+
+
 class TopUpStatus(str, enum.Enum):
     CREATED = "CREATED"
     PREPARED = "PREPARED"
@@ -147,6 +154,14 @@ class Driver(Base):
     tex_pas = Column(String(255), nullable=True)
     rating = Column(Numeric(3, 2), default=0.00)
     balance = Column(Numeric(10, 2), default=0.00)
+    vip = Column(Boolean, default=False, nullable=False)
+    vip_expires_at = Column(DateTime(timezone=True), nullable=True)
+    brend = Column(Boolean, default=False, nullable=False)
+    tariff = Column(
+        SQLEnum(Tariff, name="tariff", values_callable=lambda obj: [e.value for e in obj]),
+        default=Tariff.STANDARD,
+        nullable=False,
+    )
     is_blocked = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -193,6 +208,11 @@ class DistrictPricing(Base):
     from_district_id = Column(Integer, ForeignKey("districts.id"), nullable=False)
     to_district_id = Column(Integer, ForeignKey("districts.id"), nullable=False)
     service_type = Column(String(20), nullable=False)  # "taxi" or "delivery"
+    tariff = Column(
+        SQLEnum(Tariff, name="tariff", values_callable=lambda obj: [e.value for e in obj]),
+        default=Tariff.STANDARD,
+        nullable=False,
+    )
     base_price = Column(Numeric(10, 2), nullable=False)
     front_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for front seat
     back_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for back seat
@@ -228,6 +248,11 @@ class TaxiOrder(Base):
     passengers = Column(Integer, nullable=False)  # 1, 2, 3, 4
     client_gender = Column(SQLEnum(Gender, values_callable=lambda obj: [e.value for e in obj]), nullable=True)  # Client's gender for this order
     seat_type = Column(SQLEnum(SeatType, values_callable=lambda obj: [e.value for e in obj]), nullable=True)  # front or back
+    tariff = Column(
+        SQLEnum(Tariff, name="tariff", values_callable=lambda obj: [e.value for e in obj]),
+        default=Tariff.STANDARD,
+        nullable=False,
+    )
     is_mail_delivery = Column(Boolean, default=False, nullable=False)  # True if sending package/item instead of passenger
     date = Column(String(10), nullable=False)  # dd.mm.yyyy
     time_start = Column(String(5), nullable=False)  # HH:MM
@@ -364,6 +389,11 @@ class Pricing(Base):
     from_region_id = Column(Integer, ForeignKey("regions.id"), nullable=False)
     to_region_id = Column(Integer, ForeignKey("regions.id"), nullable=False)
     service_type = Column(String(20), nullable=False)  # "taxi" or "delivery"
+    tariff = Column(
+        SQLEnum(Tariff, name="tariff", values_callable=lambda obj: [e.value for e in obj]),
+        default=Tariff.STANDARD,
+        nullable=False,
+    )
     base_price = Column(Numeric(10, 2), nullable=False)
     front_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for front seat
     back_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for back seat

@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models import TaxiOrder, DeliveryOrder, OrderStatus
+from app.models import TaxiOrder, DeliveryOrder, OrderStatus, Driver
 from app.utils import create_notification, get_seat_visibility_timeout_minutes, get_uzbek_time
 from app.localization import get_notification_message
 from app.websocket import manager
@@ -374,8 +374,41 @@ async def check_pending_orders_for_public():
         await asyncio.sleep(5)
 
 
+async def check_expired_driver_vip():
+    """
+    Background task to disable VIP for drivers whose VIP period has ended.
+    Runs every minute.
+    """
+    while True:
+        try:
+            db: Session = SessionLocal()
+            current_time = datetime.now(timezone.utc)
+
+            expired_vip_drivers = db.query(Driver).filter(
+                Driver.vip == True,
+                Driver.vip_expires_at.isnot(None),
+                Driver.vip_expires_at <= current_time
+            ).all()
+
+            if expired_vip_drivers:
+                for driver in expired_vip_drivers:
+                    driver.vip = False
+                    driver.vip_expires_at = None
+                db.commit()
+                print(f"[TASK] Disabled VIP for {len(expired_vip_drivers)} expired driver(s)")
+
+            db.close()
+        except Exception as e:
+            print(f"[TASK ERROR] Error checking expired driver VIP: {str(e)}")
+            if 'db' in locals():
+                db.close()
+
+        await asyncio.sleep(60)
+
+
 def start_background_tasks():
     """Start all background tasks"""
     asyncio.create_task(check_unconfirmed_orders())
     asyncio.create_task(check_pending_orders_for_public())
+    asyncio.create_task(check_expired_driver_vip())
     print("[TASKS] Background tasks started")

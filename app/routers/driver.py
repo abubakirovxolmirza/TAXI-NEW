@@ -184,6 +184,7 @@ def _build_driver_payload(driver: Driver) -> dict:
         "avatar": avatar,
         "car_model": driver.car_model,
         "car_number": driver.car_number,
+        "tariff": _enum_value(driver.tariff),
         "rating": rating_value,
     }
 
@@ -266,6 +267,7 @@ def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], 
     if isinstance(order, TaxiOrder):
         base["passengers"] = order.passengers
         base["seat_type"] = _enum_value(order.seat_type)
+        base["tariff"] = _enum_value(order.tariff)
     if isinstance(order, DeliveryOrder):
         base["item_type"] = _enum_value(order.item_type)
     return base
@@ -331,6 +333,7 @@ def _serialize_taxi_order_for_passenger(order: TaxiOrder) -> dict:
         "pickup_address": order.pickup_address,
         "passengers": order.passengers,
         "seat_type": _enum_value(order.seat_type),
+        "tariff": _enum_value(order.tariff),
         "is_mail_delivery": order.is_mail_delivery,
         "date": order.date,
         "time_start": order.time_start,
@@ -602,6 +605,7 @@ async def _collect_available_orders_for_driver(
                     "passengers": order.passengers,
                     "client_gender": _enum_value(order.client_gender),
                     "seat_type": _enum_value(order.seat_type),
+                    "tariff": _enum_value(order.tariff),
                     "price": str(order.price),
                     "date": order.date,
                     "time_start": order.time_start,
@@ -1068,6 +1072,7 @@ def get_my_orders(
                     "pickup_longitude": order.pickup_longitude,
                     "passengers": order.passengers,
                     "client_gender": _enum_value(order.client_gender),
+                    "tariff": _enum_value(order.tariff),
                     "price": str(order.price),
                     "service_fee": str(order.service_fee),
                     "driver_earnings": str(order.driver_earnings),
@@ -1238,6 +1243,7 @@ def get_order_history(
                 "from_region_id": order.from_region_id,
                 "to_region_id": order.to_region_id,
                 "passengers": order.passengers,
+                "tariff": _enum_value(order.tariff),
                 "price": str(order.price),
                 "service_fee": str(order.service_fee),
                 "driver_earnings": str(order.driver_earnings),

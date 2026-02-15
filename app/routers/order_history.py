@@ -31,6 +31,7 @@ def _serialize_order_with_parties(order_type: str, order) -> Dict:
             "telephone": driver_user.telephone if driver_user else None,
             "car_model": driver.car_model,
             "car_number": driver.car_number,
+            "tariff": getattr(getattr(driver, "tariff", None), "value", None),
         }
 
     customer_info = None
@@ -58,6 +59,7 @@ def _serialize_order_with_parties(order_type: str, order) -> Dict:
         "scheduled_datetime": order.scheduled_datetime.isoformat() if getattr(order, "scheduled_datetime", None) else None,
         "passengers": getattr(order, "passengers", None),
         "seat_type": getattr(getattr(order, "seat_type", None), "value", None),
+        "tariff": getattr(getattr(order, "tariff", None), "value", None),
         "item_type": getattr(getattr(order, "item_type", None), "value", None),
         "created_at": order.created_at.isoformat() if getattr(order, "created_at", None) else None,
         "accepted_at": order.accepted_at.isoformat() if getattr(order, "accepted_at", None) else None,

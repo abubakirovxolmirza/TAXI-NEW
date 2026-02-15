@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
-from app.models import Region, District, DistrictPricing, User
+from app.models import Region, District, DistrictPricing, Tariff, User
 from app.schemas import (
     RegionResponse, DistrictResponse,
     RegionCreateWithPricing, DistrictCreateWithPricing,
@@ -183,6 +183,7 @@ def create_district_pricing(
         DistrictPricing.from_district_id == pricing_data.from_district_id,
         DistrictPricing.to_district_id == pricing_data.to_district_id,
         DistrictPricing.service_type == pricing_data.service_type,
+        DistrictPricing.tariff == pricing_data.tariff,
         DistrictPricing.is_active == True
     ).first()
     
@@ -217,6 +218,11 @@ def update_district_pricing(
         )
     
     update_data = pricing_data.dict(exclude_unset=True)
+    if pricing.service_type == "delivery" and update_data.get("tariff") not in (None, Tariff.STANDARD):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Delivery pricing supports only standard tariff"
+        )
     for key, value in update_data.items():
         setattr(pricing, key, value)
     

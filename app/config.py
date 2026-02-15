@@ -48,6 +48,21 @@ class Settings(BaseSettings):
     CLICK_VERIFY_SIGNATURE: Optional[bool] = None
     CLICK_DISABLE_SIGN_CHECK: Optional[bool] = None
 
+    # Eskiz SMS
+    ESKIZ_EMAIL: Optional[str] = None
+    ESKIZ_SECRET: Optional[str] = None
+    ESKIZ_BASE_URL: str = "https://notify.eskiz.uz/api"
+    ESKIZ_FROM: Optional[str] = None
+
+    # OTP
+    OTP_SALT: str = "change-this-otp-salt"
+    OTP_EXPIRE_SECONDS: int = 120
+    OTP_COOLDOWN_SECONDS: int = 60
+    OTP_MAX_ATTEMPTS: int = 5
+
+    # HTTP
+    HTTP_TIMEOUT_SECONDS: int = 10
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def split_cors_origins(cls, value):

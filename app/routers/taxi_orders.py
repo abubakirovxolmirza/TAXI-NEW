@@ -62,6 +62,7 @@ async def create_taxi_order(
         from_region_id=order_data.from_region_id,
         to_region_id=order_data.to_region_id,
         passengers=order_data.passengers,
+        tariff=order_data.tariff,
         seat_type=seat_type,
         from_district_id=order_data.from_district_id,
         to_district_id=order_data.to_district_id
@@ -93,6 +94,7 @@ async def create_taxi_order(
         passengers=order_data.passengers,
         client_gender=order_data.client_gender,
         seat_type=seat_type,
+        tariff=order_data.tariff,
         is_mail_delivery=order_data.is_mail_delivery,
         date=order_data.date,
         time_start=order_data.time_start,
@@ -142,6 +144,7 @@ async def create_taxi_order(
         "passengers": new_order.passengers,
         "client_gender": new_order.client_gender.value if new_order.client_gender else None,
         "seat_type": new_order.seat_type.value if new_order.seat_type else None,
+        "tariff": new_order.tariff.value if new_order.tariff else None,
         "price": float(new_order.price),
         "service_fee": float(new_order.service_fee),
         "driver_earnings": float(new_order.driver_earnings),

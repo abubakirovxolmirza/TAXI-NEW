@@ -21,6 +21,7 @@ from app.models import (
     OrderAcceptanceHistory,
     Pricing,
     Region,
+    Tariff,
     SystemSettings,
     User,
     UserRole,
@@ -131,15 +132,19 @@ def calculate_taxi_price(
     from_region_id: int,
     to_region_id: int,
     passengers: int,
+    tariff: Union[Tariff, str] = Tariff.STANDARD,
     seat_type: Optional[str] = None,
     from_district_id: Optional[int] = None,
     to_district_id: Optional[int] = None
 ) -> Decimal:
     """Calculate taxi price with district-level pricing support (district > region > default)"""
     from app.models import SeatType, DistrictPricing
-    
+
     total_passengers = passengers if passengers and passengers > 0 else 1
     pricing = None
+
+    if isinstance(tariff, str):
+        tariff = Tariff(tariff)
     
     # Try district-level pricing first (if both districts provided)
     if from_district_id and to_district_id:
@@ -147,6 +152,7 @@ def calculate_taxi_price(
             DistrictPricing.from_district_id == from_district_id,
             DistrictPricing.to_district_id == to_district_id,
             DistrictPricing.service_type == "taxi",
+            DistrictPricing.tariff == tariff,
             DistrictPricing.is_active == True
         ).first()
     
@@ -156,6 +162,7 @@ def calculate_taxi_price(
             Pricing.from_region_id == from_region_id,
             Pricing.to_region_id == to_region_id,
             Pricing.service_type == "taxi",
+            Pricing.tariff == tariff,
             Pricing.is_active == True
         ).first()
 
