@@ -30,8 +30,9 @@ def upgrade() -> None:
     op.execute("UPDATE drivers SET tariff = 'standard' WHERE tariff IS NULL")
     op.alter_column('drivers', 'tariff', nullable=False)
     op.create_index(op.f('ix_phone_otps_id'), 'phone_otps', ['id'], unique=False)
-    op.create_index(op.f('ix_system_settings_id'), 'system_settings', ['id'], unique=False)
-    # ### end Alembic commands ###
+   # op.create_index(op.f('ix_system_settings_id'), 'system_settings', ['id'], unique=False)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_system_settings_id ON system_settings (id)")
+# ### end Alembic commands ###
 
 
 def downgrade() -> None:
