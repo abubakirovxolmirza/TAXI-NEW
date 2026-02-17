@@ -45,8 +45,8 @@ services:
       - .:/app
     ports:
       - "8000:8000"
-    command: >-
-      sh -c "cd /app && alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"
+    restart: unless-stopped
+    command: ["sh", "/app/scripts/docker-entrypoint.sh"]
 
 volumes:
   postgres_data:

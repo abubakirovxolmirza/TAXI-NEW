@@ -109,6 +109,17 @@ Or with uvicorn directly:
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+### Run with Docker Compose
+```bash
+docker-compose up --build -d
+```
+
+Check status/logs:
+```bash
+docker-compose ps
+docker-compose logs -f taxi-back
+```
+
 ### Start Telegram bots (in separate terminals)
 
 **User Bot:**
