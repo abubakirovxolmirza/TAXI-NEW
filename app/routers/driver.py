@@ -15,15 +15,20 @@ from app.config import settings
 from app.database import get_db
 from app.models import (
     ApplicationStatus,
+    BalanceTransaction,
     DeliveryOrder,
     Driver,
     DriverApplication,
     OrderStatus,
     TaxiOrder,
+    Tariff,
     User,
     UserRole,
 )
 from app.schemas import (
+    BonusToBalanceConvertRequest,
+    BonusToBalanceConvertResponse,
+    DriverBalanceHistoryResponse,
     DriverApplicationCreate,
     DriverApplicationResponse,
     DriverResponse,
@@ -244,6 +249,53 @@ def _enum_value(value):
     return getattr(value, "value", str(value))
 
 
+def _tariff_level(tariff: Optional[Tariff]) -> int:
+    level_map = {
+        Tariff.STANDARD: 0,
+        Tariff.COMFORT: 1,
+        Tariff.COMFORT_PLUS: 2,
+        Tariff.BUSINESS: 3,
+    }
+    return level_map.get(tariff or Tariff.STANDARD, 0)
+
+
+def _allowed_taxi_tariffs_for_driver(driver_tariff: Optional[Tariff]) -> list[Tariff]:
+    driver_level = _tariff_level(driver_tariff)
+    all_tariffs = [Tariff.STANDARD, Tariff.COMFORT, Tariff.COMFORT_PLUS, Tariff.BUSINESS]
+    return [tariff for tariff in all_tariffs if _tariff_level(tariff) <= driver_level]
+
+
+def _can_driver_take_taxi_order(driver_tariff: Optional[Tariff], order_tariff: Optional[Tariff]) -> bool:
+    return _tariff_level(driver_tariff) >= _tariff_level(order_tariff or Tariff.STANDARD)
+
+
+def _transaction_source_label(source: str) -> str:
+    labels = {
+        "admin": "Admin tomonidan qo'shildi",
+        "click": "Click orqali to'ldirish",
+        "bonus_convert": "Bonusdan balansga o'tkazish",
+        "order_fee": "Buyurtma xizmat haqi yechimi",
+        "order_fee_refund": "Buyurtma xizmat haqi qaytarimi",
+        "other": "Boshqa operatsiya",
+    }
+    return labels.get(source, labels["other"])
+
+
+def _transaction_source(transaction: BalanceTransaction) -> str:
+    description = (transaction.description or "").strip().lower()
+    if transaction.admin_id and transaction.transaction_type == "credit":
+        return "admin"
+    if description.startswith("click topup"):
+        return "click"
+    if description == "bonus ball converted to driver balance":
+        return "bonus_convert"
+    if transaction.transaction_type == "debit" and description.startswith("service fee for"):
+        return "order_fee"
+    if transaction.transaction_type == "refund" and description.startswith("service fee refund for"):
+        return "order_fee_refund"
+    return "other"
+
+
 def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], order_type: str) -> dict:
     base = {
         "id": order.id,
@@ -268,6 +320,7 @@ def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], 
         base["passengers"] = order.passengers
         base["seat_type"] = _enum_value(order.seat_type)
         base["tariff"] = _enum_value(order.tariff)
+        base["is_new"] = order.is_new
     if isinstance(order, DeliveryOrder):
         base["item_type"] = _enum_value(order.item_type)
     return base
@@ -276,6 +329,7 @@ def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], 
 def _is_order_visible_to_driver(
     order: Union[TaxiOrder, DeliveryOrder],
     driver_id: int,
+    driver_tariff: Optional[Tariff] = None,
     driver_has_accepted_order: bool = False,
 ) -> bool:
     """
@@ -285,6 +339,9 @@ def _is_order_visible_to_driver(
     - Drivers with an accepted order can see non-public, unassigned orders for batching.
     - Orders assigned to another driver are never visible.
     """
+    if isinstance(order, TaxiOrder) and not _can_driver_take_taxi_order(driver_tariff, order.tariff):
+        return False
+
     assigned_driver_id = getattr(order, "driver_id", None)
     if assigned_driver_id and assigned_driver_id != driver_id:
         return False
@@ -309,7 +366,12 @@ def _ensure_order_visibility(
         if driver_has_accepted_order is not None
         else _driver_has_accepted_order(db, driver.id)
     )
-    if not _is_order_visible_to_driver(order, driver.id, effective_active):
+    if not _is_order_visible_to_driver(
+        order,
+        driver.id,
+        driver.tariff,
+        effective_active,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Order is not visible to this driver",
@@ -493,10 +555,12 @@ async def _collect_available_orders_for_driver(
 
     if include_taxi:
         blocked_taxi_ids = await _get_driver_cancelled_orders(driver.id, "taxi")
+        allowed_taxi_tariffs = _allowed_taxi_tariffs_for_driver(driver.tariff)
         taxi_query = db.query(TaxiOrder).filter(
             TaxiOrder.status == OrderStatus.PENDING,
             or_(TaxiOrder.driver_id.is_(None), TaxiOrder.driver_id == driver.id),
             or_(TaxiOrder.is_confirmed.is_(False), TaxiOrder.driver_id == driver.id),
+            TaxiOrder.tariff.in_(allowed_taxi_tariffs),
         )
 
         if effective_from_region_ids:
@@ -606,6 +670,7 @@ async def _collect_available_orders_for_driver(
                     "client_gender": _enum_value(order.client_gender),
                     "seat_type": _enum_value(order.seat_type),
                     "tariff": _enum_value(order.tariff),
+                    "is_new": order.is_new,
                     "price": str(order.price),
                     "date": order.date,
                     "time_start": order.time_start,
@@ -1003,6 +1068,182 @@ def get_driver_statistics(
     }
 
 
+@router.post("/bonus/convert", response_model=BonusToBalanceConvertResponse)
+def convert_bonus_to_balance(
+    convert_data: BonusToBalanceConvertRequest,
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db),
+):
+    """Convert driver's bonus_ball to driver balance."""
+    driver = (
+        db.query(Driver)
+        .filter(Driver.user_id == current_user.id)
+        .with_for_update()
+        .first()
+    )
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found",
+        )
+
+    user = (
+        db.query(User)
+        .filter(User.id == current_user.id)
+        .with_for_update()
+        .first()
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    amount = convert_data.amount.quantize(Decimal("0.01"))
+    bonus_ball = (user.bonus_ball or Decimal("0.00")).quantize(Decimal("0.01"))
+    if amount > bonus_ball:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Requested amount exceeds available bonus ball",
+        )
+
+    user.bonus_ball = (bonus_ball - amount).quantize(Decimal("0.01"))
+    driver.balance = ((driver.balance or Decimal("0.00")) + amount).quantize(Decimal("0.01"))
+
+    transaction = BalanceTransaction(
+        driver_id=driver.id,
+        amount=amount,
+        transaction_type="credit",
+        description="Bonus ball converted to driver balance",
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+    db.refresh(user)
+    db.refresh(driver)
+
+    return {
+        "success": True,
+        "message": "Bonus successfully converted to balance",
+        "transferred_amount": amount,
+        "bonus_ball": user.bonus_ball,
+        "balance": driver.balance,
+        "transaction_id": transaction.id,
+    }
+
+
+@router.get("/balance/history", response_model=DriverBalanceHistoryResponse)
+def get_driver_balance_history(
+    transaction_type: Optional[str] = Query(default=None),
+    source: Optional[str] = Query(default=None),
+    period: Optional[str] = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db),
+):
+    """Get current driver's balance transaction history with readable source labels."""
+    allowed_sources = {"admin", "click", "bonus_convert", "order_fee", "order_fee_refund", "other"}
+    if source and source not in allowed_sources:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid source. Must be one of: admin, click, bonus_convert, order_fee, order_fee_refund, other",
+        )
+    period_aliases = {
+        "day": "day",
+        "kun": "day",
+        "month": "month",
+        "oy": "month",
+        "year": "year",
+        "yil": "year",
+        "yillik": "year",
+    }
+    normalized_period = None
+    if period:
+        normalized_period = period_aliases.get(period.strip().lower())
+        if not normalized_period:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid period. Must be one of: day/kun, month/oy, year/yil/yillik",
+            )
+
+    driver = db.query(Driver).filter(Driver.user_id == current_user.id).first()
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found",
+        )
+
+    query = (
+        db.query(BalanceTransaction)
+        .filter(BalanceTransaction.driver_id == driver.id)
+        .order_by(BalanceTransaction.created_at.desc())
+    )
+
+    if transaction_type:
+        if transaction_type not in {"credit", "debit", "refund"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid transaction_type. Must be 'credit', 'debit', or 'refund'",
+            )
+        query = query.filter(BalanceTransaction.transaction_type == transaction_type)
+
+    if normalized_period:
+        now = datetime.now(timezone.utc)
+        if normalized_period == "day":
+            start_at = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_at = start_at + timedelta(days=1)
+        elif normalized_period == "month":
+            start_at = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if start_at.month == 12:
+                end_at = start_at.replace(year=start_at.year + 1, month=1)
+            else:
+                end_at = start_at.replace(month=start_at.month + 1)
+        else:  # normalized_period == "year"
+            start_at = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            end_at = start_at.replace(year=start_at.year + 1)
+        query = query.filter(
+            BalanceTransaction.created_at >= start_at,
+            BalanceTransaction.created_at < end_at,
+        )
+
+    transactions = query.all()
+    filtered = []
+    for transaction in transactions:
+        tx_source = _transaction_source(transaction)
+        if source and source != tx_source:
+            continue
+        filtered.append((transaction, tx_source))
+
+    page_items = filtered[offset : offset + limit]
+    admin_ids = {transaction.admin_id for transaction, _ in page_items if transaction.admin_id}
+    admins = {}
+    if admin_ids:
+        admins = {
+            admin.id: admin.name
+            for admin in db.query(User).filter(User.id.in_(admin_ids)).all()
+        }
+
+    return {
+        "total": len(filtered),
+        "current_balance": driver.balance,
+        "transactions": [
+            {
+                "id": transaction.id,
+                "amount": transaction.amount,
+                "transaction_type": transaction.transaction_type,
+                "description": transaction.description,
+                "source": tx_source,
+                "source_label": _transaction_source_label(tx_source),
+                "admin_id": transaction.admin_id,
+                "admin_name": admins.get(transaction.admin_id) if transaction.admin_id else None,
+                "created_at": transaction.created_at,
+            }
+            for transaction, tx_source in page_items
+        ],
+    }
+
+
 @router.get("/orders/my-orders")
 def get_my_orders(
     status_filter: Optional[OrderStatus] = None,
@@ -1073,6 +1314,7 @@ def get_my_orders(
                     "passengers": order.passengers,
                     "client_gender": _enum_value(order.client_gender),
                     "tariff": _enum_value(order.tariff),
+                    "is_new": order.is_new,
                     "price": str(order.price),
                     "service_fee": str(order.service_fee),
                     "driver_earnings": str(order.driver_earnings),
@@ -1300,6 +1542,11 @@ async def get_new_orders(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Driver profile not found",
+        )
+    if driver.is_blocked:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Blocked drivers cannot view new orders",
         )
 
     return await _collect_available_orders_for_driver(

@@ -285,7 +285,13 @@ async def click_complete(
                 if driver is None:
                     error = ClickErrorCodes.REQUEST_ERROR
                 else:
-                    await credit_driver_balance(session, driver.id, topup.amount)
+                    click_ref = topup.click_trans_id or click_trans_id or "unknown"
+                    await credit_driver_balance(
+                        session,
+                        driver.id,
+                        topup.amount,
+                        description=f"Click topup via Click. click_trans_id={click_ref}",
+                    )
                     topup.status = TopUpStatus.PAID
                     topup.paid_at = utc_now()
                     if topup.merchant_confirm_id is None:

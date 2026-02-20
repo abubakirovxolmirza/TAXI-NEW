@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Driver, TopUpTransaction, TopUpStatus
+from app.models import BalanceTransaction, Driver, TopUpTransaction, TopUpStatus
 
 
 class ClickErrorCodes:
@@ -140,9 +140,18 @@ async def credit_driver_balance(
     session: AsyncSession,
     driver_id: int,
     amount: Decimal,
+    description: str = "Click topup",
 ) -> None:
     await session.execute(
         update(Driver)
         .where(Driver.id == driver_id)
         .values(balance=Driver.balance + amount)
+    )
+    session.add(
+        BalanceTransaction(
+            driver_id=driver_id,
+            amount=amount,
+            transaction_type="credit",
+            description=description,
+        )
     )

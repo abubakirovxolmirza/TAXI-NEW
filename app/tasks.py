@@ -284,6 +284,19 @@ async def check_pending_orders_for_public():
             
             # Get current time
             current_time = datetime.now(timezone.utc)
+            new_order_threshold = current_time - timedelta(minutes=1)
+
+            # Taxi orders are marked as new for 1 minute after creation.
+            updated_new_flags = (
+                db.query(TaxiOrder)
+                .filter(
+                    TaxiOrder.is_new == True,
+                    TaxiOrder.created_at <= new_order_threshold,
+                )
+                .update({TaxiOrder.is_new: False}, synchronize_session=False)
+            )
+            if updated_new_flags:
+                db.commit()
             
             # Find taxi orders that are pending, not public, and have expired pending_time
             taxi_orders_to_make_public = db.query(TaxiOrder).filter(

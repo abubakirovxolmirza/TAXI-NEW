@@ -154,6 +154,7 @@ async def create_taxi_order(
         "scheduled_datetime": new_order.scheduled_datetime.isoformat() if new_order.scheduled_datetime else None,
         "created_at": new_order.created_at.isoformat(),
         "public_order": new_order.public_order,
+        "is_new": new_order.is_new,
     }
     if new_order.public_order:
         asyncio.create_task(manager.broadcast_to_all_drivers({

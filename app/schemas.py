@@ -322,6 +322,7 @@ class TaxiOrderResponse(BaseModel):
     note: Optional[str]
     status: OrderStatus
     public_order: bool
+    is_new: bool
     pending_time: Optional[int]
     cancellation_reason: Optional[str]
     created_at: datetime
@@ -594,6 +595,37 @@ class BalanceAdd(BaseModel):
     driver_id: int
     amount: Decimal
     description: Optional[str] = None
+
+
+class BonusToBalanceConvertRequest(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+
+
+class BonusToBalanceConvertResponse(BaseModel):
+    success: bool
+    message: str
+    transferred_amount: Decimal
+    bonus_ball: Decimal
+    balance: Decimal
+    transaction_id: int
+
+
+class DriverBalanceHistoryItem(BaseModel):
+    id: int
+    amount: Decimal
+    transaction_type: str
+    description: Optional[str]
+    source: str
+    source_label: str
+    admin_id: Optional[int]
+    admin_name: Optional[str]
+    created_at: datetime
+
+
+class DriverBalanceHistoryResponse(BaseModel):
+    total: int
+    current_balance: Decimal
+    transactions: List[DriverBalanceHistoryItem]
 
 
 class BalanceTransactionResponse(BaseModel):

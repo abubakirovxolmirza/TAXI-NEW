@@ -264,6 +264,7 @@ class TaxiOrder(Base):
     note = Column(Text, nullable=True)
     status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
     public_order = Column(Boolean, default=False, nullable=False)  # If true, order is visible to all drivers
+    is_new = Column(Boolean, default=True, nullable=False)
     pending_time = Column(Integer, nullable=True)  # Time in seconds before order becomes public
     cancellation_reason = Column(Text, nullable=True)
     telegram_message_id = Column(Integer, nullable=True)
