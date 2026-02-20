@@ -512,6 +512,12 @@ async def _collect_available_orders_for_driver(
     - Excludes orders held/confirmed by other drivers.
     - Excludes orders the current driver cancelled/rejected.
     """
+    if driver.is_blocked:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Blocked drivers cannot view new orders",
+        )
+
     selected_order_types: Set[str] = set()
     if order_type:
         for token in order_type.split(","):
@@ -1542,11 +1548,6 @@ async def get_new_orders(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Driver profile not found",
-        )
-    if driver.is_blocked:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Blocked drivers cannot view new orders",
         )
 
     return await _collect_available_orders_for_driver(
