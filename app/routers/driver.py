@@ -81,6 +81,25 @@ def _parse_ids_csv(raw_ids: Optional[str]) -> Set[int]:
     return parsed
 
 
+def _parse_tariffs_csv(raw_tariffs: Optional[str]) -> Set[Tariff]:
+    """Convert a comma-separated list of tariff values into a set of Tariff enums."""
+    if not raw_tariffs:
+        return set()
+    parsed: Set[Tariff] = set()
+    for item in raw_tariffs.split(","):
+        candidate = (item or "").strip().lower()
+        if not candidate:
+            continue
+        try:
+            parsed.add(Tariff(candidate))
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid tariff filter. Allowed values: standard, comfort, comfort_plus, business",
+            )
+    return parsed
+
+
 def _get_local_cancelled(driver_id: int, order_type: str) -> Set[int]:
     """Fetch the local blacklist set for a driver/order_type combo."""
     if order_type not in _driver_cancelled_orders:
@@ -503,6 +522,7 @@ async def _collect_available_orders_for_driver(
     to_district_ids: Optional[Set[int]] = None,
     district_id: Optional[int] = None,
     order_type: Optional[str] = None,
+    tariff: Optional[str] = None,
     limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
 ) -> dict:
@@ -533,6 +553,7 @@ async def _collect_available_orders_for_driver(
 
     include_taxi = not selected_order_types or "taxi" in selected_order_types
     include_delivery = not selected_order_types or "delivery" in selected_order_types
+    requested_taxi_tariffs = _parse_tariffs_csv(tariff)
 
     effective_from_region_ids: Set[int] = set(from_region_ids or set())
     if from_region_id:
@@ -561,45 +582,56 @@ async def _collect_available_orders_for_driver(
 
     if include_taxi:
         blocked_taxi_ids = await _get_driver_cancelled_orders(driver.id, "taxi")
-        allowed_taxi_tariffs = _allowed_taxi_tariffs_for_driver(driver.tariff)
-        taxi_query = db.query(TaxiOrder).filter(
-            TaxiOrder.status == OrderStatus.PENDING,
-            or_(TaxiOrder.driver_id.is_(None), TaxiOrder.driver_id == driver.id),
-            or_(TaxiOrder.is_confirmed.is_(False), TaxiOrder.driver_id == driver.id),
-            TaxiOrder.tariff.in_(allowed_taxi_tariffs),
+        allowed_taxi_tariffs = set(_allowed_taxi_tariffs_for_driver(driver.tariff))
+        effective_taxi_tariffs = (
+            allowed_taxi_tariffs & requested_taxi_tariffs
+            if requested_taxi_tariffs
+            else allowed_taxi_tariffs
         )
+        if effective_taxi_tariffs:
+            include_null_tariff_as_standard = Tariff.STANDARD in effective_taxi_tariffs
+            tariff_filter = TaxiOrder.tariff.in_(list(effective_taxi_tariffs))
+            if include_null_tariff_as_standard:
+                tariff_filter = or_(tariff_filter, TaxiOrder.tariff.is_(None))
 
-        if effective_from_region_ids:
-            taxi_query = taxi_query.filter(
-                TaxiOrder.from_region_id.in_(effective_from_region_ids),
+            taxi_query = db.query(TaxiOrder).filter(
+                TaxiOrder.status == OrderStatus.PENDING,
+                or_(TaxiOrder.driver_id.is_(None), TaxiOrder.driver_id == driver.id),
+                or_(TaxiOrder.is_confirmed.is_(False), TaxiOrder.driver_id == driver.id),
+                tariff_filter,
             )
 
-        if effective_to_region_ids:
-            taxi_query = taxi_query.filter(
-                TaxiOrder.to_region_id.in_(effective_to_region_ids),
+            if effective_from_region_ids:
+                taxi_query = taxi_query.filter(
+                    TaxiOrder.from_region_id.in_(effective_from_region_ids),
+                )
+
+            if effective_to_region_ids:
+                taxi_query = taxi_query.filter(
+                    TaxiOrder.to_region_id.in_(effective_to_region_ids),
+                )
+
+            if effective_from_district_ids:
+                taxi_query = taxi_query.filter(
+                    TaxiOrder.from_district_id.in_(effective_from_district_ids),
+                )
+
+            if effective_to_district_ids:
+                taxi_query = taxi_query.filter(
+                    TaxiOrder.to_district_id.in_(effective_to_district_ids),
+                )
+
+            if not driver_has_accepted_order:
+                taxi_query = taxi_query.filter(
+                    or_(TaxiOrder.public_order.is_(True), TaxiOrder.driver_id == driver.id),
+                )
+
+            if blocked_taxi_ids:
+                taxi_query = taxi_query.filter(~TaxiOrder.id.in_(blocked_taxi_ids))
+
+            taxi_orders = (
+                taxi_query.order_by(TaxiOrder.created_at.desc()).limit(fetch_size).all()
             )
-
-        if effective_from_district_ids:
-            taxi_query = taxi_query.filter(
-                TaxiOrder.from_district_id.in_(effective_from_district_ids),
-            )
-
-        if effective_to_district_ids:
-            taxi_query = taxi_query.filter(
-                TaxiOrder.to_district_id.in_(effective_to_district_ids),
-            )
-
-        if not driver_has_accepted_order:
-            taxi_query = taxi_query.filter(
-                or_(TaxiOrder.public_order.is_(True), TaxiOrder.driver_id == driver.id),
-            )
-
-        if blocked_taxi_ids:
-            taxi_query = taxi_query.filter(~TaxiOrder.id.in_(blocked_taxi_ids))
-
-        taxi_orders = (
-            taxi_query.order_by(TaxiOrder.created_at.desc()).limit(fetch_size).all()
-        )
 
     if include_delivery:
         blocked_delivery_ids = await _get_driver_cancelled_orders(driver.id, "delivery")
@@ -1419,6 +1451,7 @@ async def get_active_orders(
     to_district_ids: Optional[str] = Query(None),
     district_id: Optional[int] = None,
     order_type: Optional[str] = None,
+    tariff: Optional[str] = Query(None),
     limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
     current_user: User = Depends(get_current_driver),
@@ -1452,6 +1485,7 @@ async def get_active_orders(
         to_district_ids=_parse_ids_csv(to_district_ids),
         district_id=district_id,
         order_type=order_type,
+        tariff=tariff,
         limit=limit,
         offset=offset,
     )
@@ -1536,6 +1570,7 @@ async def get_new_orders(
     to_district_ids: Optional[str] = Query(None),
     district_id: Optional[int] = None,
     order_type: Optional[str] = None,
+    tariff: Optional[str] = Query(None),
     limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
     current_user: User = Depends(get_current_driver),
@@ -1564,6 +1599,7 @@ async def get_new_orders(
         to_district_ids=_parse_ids_csv(to_district_ids),
         district_id=district_id,
         order_type=order_type,
+        tariff=tariff,
         limit=limit,
         offset=offset,
     )
