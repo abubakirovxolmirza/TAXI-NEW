@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_async_db
-from app.models import Driver, PaymentLog, TopUpStatus, TopUpTransaction, User
+from app.localization import get_notification_message
+from app.models import Driver, Notification, PaymentLog, TopUpStatus, TopUpTransaction, User
 from app.services.click_sign import is_valid_complete_sign, is_valid_prepare_sign
 from app.services.phone import digits_only, normalize_phone
 from app.services.topup_service import (
@@ -291,6 +292,15 @@ async def click_complete(
                         driver.id,
                         topup.amount,
                         description=f"Click topup via Click. click_trans_id={click_ref}",
+                    )
+                    notification = get_notification_message("balance_added", amount=topup.amount)
+                    session.add(
+                        Notification(
+                            driver_id=driver.id,
+                            title=notification["title"],
+                            message=notification["message"],
+                            notification_type="balance_added",
+                        )
                     )
                     topup.status = TopUpStatus.PAID
                     topup.paid_at = utc_now()

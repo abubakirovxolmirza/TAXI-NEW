@@ -1163,6 +1163,15 @@ def convert_bonus_to_balance(
     db.refresh(user)
     db.refresh(driver)
 
+    notification = get_notification_message("balance_added", amount=amount)
+    create_notification(
+        db=db,
+        title=notification["title"],
+        message=notification["message"],
+        notification_type="balance_added",
+        driver_id=driver.id,
+    )
+
     return {
         "success": True,
         "message": "Bonus successfully converted to balance",
