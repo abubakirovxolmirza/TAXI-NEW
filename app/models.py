@@ -163,6 +163,7 @@ class Driver(Base):
         nullable=False,
     )
     is_blocked = Column(Boolean, default=False, nullable=False)
+    is_worked = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -245,6 +246,9 @@ class TaxiOrder(Base):
     pickup_latitude = Column(String(50), nullable=True)  # Client's pickup latitude
     pickup_longitude = Column(String(50), nullable=True)  # Client's pickup longitude
     pickup_address = Column(Text, nullable=True)  # Optional address description
+    dropoff_latitude = Column(String(50), nullable=True)  # Destination latitude
+    dropoff_longitude = Column(String(50), nullable=True)  # Destination longitude
+    dropoff_address = Column(Text, nullable=True)  # Destination address description
     passengers = Column(Integer, nullable=False)  # 1, 2, 3, 4
     client_gender = Column(SQLEnum(Gender, values_callable=lambda obj: [e.value for e in obj]), nullable=True)  # Client's gender for this order
     seat_type = Column(SQLEnum(SeatType, values_callable=lambda obj: [e.value for e in obj]), nullable=True)  # front or back

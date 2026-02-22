@@ -251,6 +251,9 @@ class TaxiOrderCreate(BaseModel):
     pickup_latitude: Optional[str] = None  # Client's pickup latitude
     pickup_longitude: Optional[str] = None  # Client's pickup longitude
     pickup_address: Optional[str] = None  # Optional address description
+    dropoff_latitude: Optional[str] = None  # Destination latitude
+    dropoff_longitude: Optional[str] = None  # Destination longitude
+    dropoff_address: Optional[str] = None  # Destination address description
     passengers: int = Field(..., ge=1, le=4)
     client_gender: Optional[Gender] = None  # Client's gender for this order (not required)
     seat_type: Optional[SeatType] = None  # front or back (auto-selected if not provided)
@@ -279,6 +282,9 @@ class TaxiOrderUpdate(BaseModel):
     pickup_latitude: Optional[str] = None
     pickup_longitude: Optional[str] = None
     pickup_address: Optional[str] = None
+    dropoff_latitude: Optional[str] = None
+    dropoff_longitude: Optional[str] = None
+    dropoff_address: Optional[str] = None
     passengers: Optional[int] = Field(None, ge=1, le=4)
     client_gender: Optional[Gender] = None
     seat_type: Optional[SeatType] = None
@@ -307,6 +313,9 @@ class TaxiOrderResponse(BaseModel):
     pickup_latitude: Optional[str]
     pickup_longitude: Optional[str]
     pickup_address: Optional[str]
+    dropoff_latitude: Optional[str]
+    dropoff_longitude: Optional[str]
+    dropoff_address: Optional[str]
     passengers: int
     client_gender: Optional[Gender]
     seat_type: Optional[SeatType]
@@ -482,6 +491,7 @@ class DriverResponse(BaseModel):
     vip_expires_at: Optional[datetime]
     brend: bool
     is_blocked: bool
+    is_worked: bool
     created_at: datetime
     
     class Config:
