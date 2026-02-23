@@ -68,6 +68,12 @@ class TopUpStatus(str, enum.Enum):
     CANCELED = "CANCELED"
 
 
+class DevicePlatform(str, enum.Enum):
+    ANDROID = "android"
+    IOS = "ios"
+    WEB = "web"
+
+
 class User(Base):
     __tablename__ = "users"
     
@@ -91,6 +97,7 @@ class User(Base):
     delivery_orders = relationship("DeliveryOrder", back_populates="user", foreign_keys="DeliveryOrder.user_id")
     ratings_given = relationship("Rating", back_populates="user", foreign_keys="Rating.user_id")
     driver_application = relationship("DriverApplication", back_populates="user", foreign_keys="DriverApplication.user_id", uselist=False)
+    device_tokens = relationship("DeviceToken", back_populates="user", foreign_keys="DeviceToken.user_id")
 
 
 class Permission(Base):
@@ -439,6 +446,8 @@ class Notification(Base):
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
     title = Column(String(200), nullable=False)
     message = Column(Text, nullable=False)
+    body = Column(Text, nullable=False)
+    data = Column(JSONB, nullable=True)
     notification_type = Column(String(50), nullable=False)
     is_read = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -446,6 +455,24 @@ class Notification(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
     driver = relationship("Driver", foreign_keys=[driver_id])
+
+
+class DeviceToken(Base):
+    __tablename__ = "device_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String(512), nullable=False, unique=True, index=True)
+    platform = Column(
+        SQLEnum(DevicePlatform, values_callable=lambda obj: [e.value for e in obj]),
+        nullable=True,
+    )
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)
+
+    user = relationship("User", back_populates="device_tokens", foreign_keys=[user_id])
 
 
 class Feedback(Base):

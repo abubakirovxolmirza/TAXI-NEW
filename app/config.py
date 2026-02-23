@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     CLICK_VERIFY_SIGNATURE: Optional[bool] = None
     CLICK_DISABLE_SIGN_CHECK: Optional[bool] = None
 
+    # Firebase Cloud Messaging
+    FCM_ENABLED: bool = True
+    FCM_SERVICE_ACCOUNT_FILE: Optional[str] = None
+    FCM_SERVICE_ACCOUNT_JSON: Optional[str] = None
+
     # Eskiz SMS
     ESKIZ_EMAIL: Optional[str] = None
     ESKIZ_SECRET: Optional[str] = None

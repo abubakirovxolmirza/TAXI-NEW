@@ -2,9 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
-from app.models import User, Notification, Driver
-from app.schemas import NotificationResponse
-from app.auth import get_current_user
+from app.models import User, Notification, DeviceToken
+from app.schemas import (
+    NotificationResponse,
+    NotificationSendRequest,
+    NotificationSendResponse,
+    NotificationBroadcastRequest,
+    NotificationBroadcastResponse,
+)
+from app.auth import get_current_user, get_current_admin
+from app.services.fcm import send_push_to_tokens
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
@@ -107,3 +114,105 @@ def mark_all_notifications_read(
     db.commit()
     
     return {"success": True, "message": "All notifications marked as read"}
+
+
+@router.post("/send", response_model=NotificationSendResponse)
+def send_notification_to_user(
+    payload: NotificationSendRequest,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    target_user = db.query(User).filter(User.id == payload.user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    notification = Notification(
+        user_id=payload.user_id,
+        title=payload.title,
+        message=payload.body,
+        body=payload.body,
+        data=payload.data,
+        notification_type="push",
+        is_read=False,
+    )
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+
+    tokens = (
+        db.query(DeviceToken)
+        .filter(DeviceToken.user_id == payload.user_id, DeviceToken.is_active == True)
+        .all()
+    )
+    push_result = send_push_to_tokens(
+        db=db,
+        device_tokens=tokens,
+        title=payload.title,
+        body=payload.body,
+        data=payload.data,
+    )
+
+    return {
+        "success": True,
+        "notification": notification,
+        "push": push_result,
+    }
+
+
+@router.post("/broadcast", response_model=NotificationBroadcastResponse)
+def broadcast_notifications(
+    payload: NotificationBroadcastRequest,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    unique_user_ids = list(dict.fromkeys(payload.user_ids))
+    if not unique_user_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_ids cannot be empty",
+        )
+
+    users = db.query(User.id).filter(User.id.in_(unique_user_ids)).all()
+    existing_user_ids = {row.id for row in users}
+    if not existing_user_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No valid users found",
+        )
+
+    notifications = [
+        Notification(
+            user_id=user_id,
+            title=payload.title,
+            message=payload.body,
+            body=payload.body,
+            data=payload.data,
+            notification_type="push",
+            is_read=False,
+        )
+        for user_id in existing_user_ids
+    ]
+    db.add_all(notifications)
+    db.commit()
+
+    tokens = (
+        db.query(DeviceToken)
+        .filter(DeviceToken.user_id.in_(existing_user_ids), DeviceToken.is_active == True)
+        .all()
+    )
+    push_result = send_push_to_tokens(
+        db=db,
+        device_tokens=tokens,
+        title=payload.title,
+        body=payload.body,
+        data=payload.data,
+    )
+
+    return {
+        "success": True,
+        "notifications_created": len(notifications),
+        "push": push_result,
+    }

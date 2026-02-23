@@ -2,7 +2,17 @@ from pydantic import BaseModel, validator, Field
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
-from app.models import UserRole, Language, Gender, OrderStatus, ApplicationStatus, ItemType, SeatType, Tariff
+from app.models import (
+    UserRole,
+    Language,
+    Gender,
+    OrderStatus,
+    ApplicationStatus,
+    ItemType,
+    SeatType,
+    Tariff,
+    DevicePlatform,
+)
 
 
 # User Schemas
@@ -735,9 +745,24 @@ class NotificationResponse(BaseModel):
     id: int
     title: str
     message: str
+    body: Optional[str] = None
+    data: Optional[dict] = None
     notification_type: str
     is_read: bool
     created_at: datetime
+
+    @validator("body", pre=True, always=True)
+    def set_body_from_message(cls, v, values):
+        if v is not None:
+            return v
+        return values.get("message")
+
+    @validator("created_at", pre=True, always=True)
+    def convert_created_at_to_uzbek_time(cls, v):
+        from app.utils import get_uzbek_time
+        if v is None:
+            return v
+        return get_uzbek_time(v)
     
     class Config:
         from_attributes = True
@@ -748,6 +773,69 @@ class BroadcastMessage(BaseModel):
     target: str  # "users", "drivers", "all"
     title: str
     message: str
+
+
+class DeviceTokenUpsertRequest(BaseModel):
+    token: str = Field(..., min_length=20, max_length=2048)
+    platform: Optional[DevicePlatform] = None
+
+
+class DeviceTokenDeleteRequest(BaseModel):
+    token: str = Field(..., min_length=20, max_length=2048)
+
+
+class DeviceTokenResponse(BaseModel):
+    id: int
+    user_id: int
+    token: str
+    platform: Optional[DevicePlatform]
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime]
+    last_seen_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class DeviceTokenActionResponse(BaseModel):
+    success: bool
+    message: str
+    device_token: Optional[DeviceTokenResponse] = None
+
+
+class NotificationSendRequest(BaseModel):
+    user_id: int
+    title: str = Field(..., min_length=1, max_length=200)
+    body: str = Field(..., min_length=1)
+    data: Optional[dict] = None
+
+
+class NotificationBroadcastRequest(BaseModel):
+    user_ids: List[int] = Field(..., min_items=1)
+    title: str = Field(..., min_length=1, max_length=200)
+    body: str = Field(..., min_length=1)
+    data: Optional[dict] = None
+
+
+class PushSendSummary(BaseModel):
+    total_tokens: int
+    success_count: int
+    failure_count: int
+    invalidated_tokens: int
+    skipped: bool = False
+
+
+class NotificationSendResponse(BaseModel):
+    success: bool
+    notification: NotificationResponse
+    push: PushSendSummary
+
+
+class NotificationBroadcastResponse(BaseModel):
+    success: bool
+    notifications_created: int
+    push: PushSendSummary
 
 
 # Order Cancellation Schema

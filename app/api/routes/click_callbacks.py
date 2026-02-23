@@ -299,6 +299,7 @@ async def click_complete(
                             driver_id=driver.id,
                             title=notification["title"],
                             message=notification["message"],
+                            body=notification["message"],
                             notification_type="balance_added",
                         )
                     )

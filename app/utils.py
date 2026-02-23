@@ -307,13 +307,18 @@ def create_notification(
     user_id: Optional[int] = None,
     driver_id: Optional[int] = None,
     driver_status_payload: Optional[dict] = None,
+    data: Optional[dict] = None,
+    body: Optional[str] = None,
 ) -> Notification:
     """Create a notification for user or driver"""
+    resolved_body = body if body is not None else message
     notification = Notification(
         user_id=user_id,
         driver_id=driver_id,
         title=title,
         message=message,
+        body=resolved_body,
+        data=data,
         notification_type=notification_type
     )
     db.add(notification)
@@ -475,12 +480,16 @@ def apply_service_fee_refund(
 
 def _serialize_notification(notification: Notification) -> dict:
     created_at = notification.created_at
-    if not isinstance(created_at, datetime):
+    if isinstance(created_at, datetime):
+        created_at = get_uzbek_time(created_at)
+    else:
         created_at = get_uzbek_time()
     return {
         "id": notification.id,
         "title": notification.title,
+        "body": notification.body or notification.message,
         "message": notification.message,
+        "data": notification.data,
         "type": notification.notification_type,
         "notification_type": notification.notification_type,
         "is_read": notification.is_read,
