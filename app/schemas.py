@@ -485,6 +485,10 @@ class DriverUpdate(BaseModel):
     tex_pas: Optional[str] = None
 
 
+class DriverWorkStatusUpdate(BaseModel):
+    is_worked: bool
+
+
 class DriverResponse(BaseModel):
     id: int
     user_id: int

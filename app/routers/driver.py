@@ -34,6 +34,7 @@ from app.schemas import (
     DriverResponse,
     DriverStatistics,
     DriverUpdate,
+    DriverWorkStatusUpdate,
 )
 from app.utils import (
     apply_service_fee_charge,
@@ -1022,6 +1023,26 @@ def update_driver_profile(
     db.commit()
     db.refresh(driver)
     
+    return driver
+
+
+@router.patch("/profile/is-worked", response_model=DriverResponse)
+def update_driver_work_status(
+    payload: DriverWorkStatusUpdate,
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db),
+):
+    """Update current driver's work status."""
+    driver = current_user.driver_profile
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found",
+        )
+
+    driver.is_worked = payload.is_worked
+    db.commit()
+    db.refresh(driver)
     return driver
 
 
