@@ -343,6 +343,7 @@ def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], 
         base["is_new"] = order.is_new
     if isinstance(order, DeliveryOrder):
         base["item_type"] = _enum_value(order.item_type)
+        base["who_pay"] = getattr(order, "who_pay", "sender")
         base["is_new"] = order.is_new
     return base
 
@@ -464,6 +465,7 @@ def _serialize_delivery_order_for_passenger(order: DeliveryOrder) -> dict:
         "dropoff_longitude": order.dropoff_longitude,
         "dropoff_address": order.dropoff_address,
         "item_type": _enum_value(order.item_type),
+        "who_pay": getattr(order, "who_pay", "sender"),
         "date": order.date,
         "time_start": order.time_start,
         "time_end": order.time_end,
@@ -750,6 +752,7 @@ async def _collect_available_orders_for_driver(
                     "to_region_id": order.to_region_id,
                     "to_district_id": order.to_district_id,
                     "item_type": order.item_type.value,
+                    "who_pay": order.who_pay,
                     "is_new": order.is_new,
                     "price": str(order.price),
                     "date": order.date,
@@ -1446,6 +1449,7 @@ def get_my_orders(
                     "dropoff_latitude": order.dropoff_latitude,
                     "dropoff_longitude": order.dropoff_longitude,
                     "item_type": order.item_type.value,
+                    "who_pay": order.who_pay,
                     "is_new": order.is_new,
                     "price": str(order.price),
                     "service_fee": str(order.service_fee),
@@ -1592,6 +1596,7 @@ def get_order_history(
                 "from_region_id": order.from_region_id,
                 "to_region_id": order.to_region_id,
                 "item_type": order.item_type.value,
+                "who_pay": order.who_pay,
                 "price": str(order.price),
                 "service_fee": str(order.service_fee),
                 "driver_earnings": str(order.driver_earnings),

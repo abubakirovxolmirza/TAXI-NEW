@@ -1,5 +1,5 @@
 from pydantic import BaseModel, validator, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 from decimal import Decimal
 from app.models import (
@@ -372,6 +372,7 @@ class DeliveryOrderCreate(BaseModel):
     dropoff_latitude: Optional[str] = None  # Receiver's drop-off latitude
     dropoff_longitude: Optional[str] = None  # Receiver's drop-off longitude
     dropoff_address: Optional[str] = None  # Receiver's address
+    who_pay: Literal["sender", "recipient"] = "recipient"
     item_type: ItemType
     date: str  # dd.mm.yyyy
     time_start: str  # HH:MM
@@ -394,6 +395,7 @@ class DeliveryOrderUpdate(BaseModel):
     dropoff_latitude: Optional[str] = None
     dropoff_longitude: Optional[str] = None
     dropoff_address: Optional[str] = None
+    who_pay: Optional[Literal["sender", "recipient"]] = None
     item_type: Optional[ItemType] = None
     date: Optional[str] = None
     time_start: Optional[str] = None
@@ -422,6 +424,7 @@ class DeliveryOrderResponse(BaseModel):
     dropoff_latitude: Optional[str]
     dropoff_longitude: Optional[str]
     dropoff_address: Optional[str]
+    who_pay: Literal["sender", "recipient"]
     item_type: ItemType
     date: str
     time_start: str

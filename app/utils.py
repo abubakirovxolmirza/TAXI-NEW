@@ -840,6 +840,19 @@ def _build_order_telegram_message(
     
     lines: list[str] = []
     if order_type == "taxi":
+        # Format tariff label for Telegram
+        tariff_label = "-"
+        if hasattr(order, "tariff") and order.tariff:
+            tariff_value = getattr(order.tariff, "value", str(order.tariff))
+            tariff_map = {
+                "standard": "Standart",
+                "comfort": "Komfort",
+                "comfort_plus": "Komfort Plus",
+                "business": "Biznes",
+            }
+            tariff_label = tariff_map.get(str(tariff_value).lower(), str(tariff_value))
+        is_business_tariff = str(getattr(getattr(order, "tariff", None), "value", getattr(order, "tariff", ""))).lower() == "business"
+
         # Format seat type
         seat_label = "-"
         if hasattr(order, 'seat_type') and order.seat_type:
@@ -859,14 +872,16 @@ def _build_order_telegram_message(
                 "📍 *Yo'nalish:*",
                 f"{from_region}, {from_district} ➡️ {to_region}, {to_district}",
                 "",
-                f"👥 *Yo'lovchilar soni:* {order.passengers} ta",
-                f"💺 *O'rindiq:* {seat_label}",
+                f"🏷️ *Tarif:* {tariff_label}",
                 "",
                 f"⏰ *Reja vaqt:* {reja_vaqt}",
                 "",
                 f"💰 *Narx:* {_format_price(order.price)}",
             ]
         )
+        if not is_business_tariff:
+            lines.insert(lines.index(f"🏷️ *Tarif:* {tariff_label}"), f"💺 *O'rindiq:* {seat_label}")
+            lines.insert(lines.index(f"💺 *O'rindiq:* {seat_label}"), f"👥 *Yo'lovchilar soni:* {order.passengers} ta")
     else:
         item_type = getattr(order.item_type, "value", order.item_type)
         lines.extend(

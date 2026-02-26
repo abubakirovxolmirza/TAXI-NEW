@@ -321,6 +321,7 @@ class DeliveryOrder(Base):
     dropoff_latitude = Column(String(50), nullable=True)  # Receiver's drop-off latitude
     dropoff_longitude = Column(String(50), nullable=True)  # Receiver's drop-off longitude
     dropoff_address = Column(Text, nullable=True)  # Receiver's address
+    who_pay = Column(String(20), nullable=False, default="recipient", server_default="recipient")  # sender or recipient
     item_type = Column(SQLEnum(ItemType, values_callable=lambda obj: [e.value for e in obj]), nullable=False)
     date = Column(String(10), nullable=False)  # dd.mm.yyyy
     time_start = Column(String(5), nullable=False)  # HH:MM
