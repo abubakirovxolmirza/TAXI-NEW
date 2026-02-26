@@ -344,6 +344,8 @@ class TaxiOrderResponse(BaseModel):
     is_new: bool
     pending_time: Optional[int]
     cancellation_reason: Optional[str]
+    cancelled_by_user_id: Optional[int]
+    cancelled_by_role: Optional[str]
     created_at: datetime
     accepted_at: Optional[datetime]
     confirmed_at: Optional[datetime]
@@ -431,8 +433,11 @@ class DeliveryOrderResponse(BaseModel):
     note: Optional[str]
     status: OrderStatus
     public_order: bool
+    is_new: bool
     pending_time: Optional[int]
     cancellation_reason: Optional[str]
+    cancelled_by_user_id: Optional[int]
+    cancelled_by_role: Optional[str]
     created_at: datetime
     accepted_at: Optional[datetime]
     confirmed_at: Optional[datetime]
@@ -649,6 +654,7 @@ class DriverBalanceHistoryItem(BaseModel):
 class DriverBalanceHistoryResponse(BaseModel):
     total: int
     current_balance: Decimal
+    vip: bool
     transactions: List[DriverBalanceHistoryItem]
 
 

@@ -140,6 +140,8 @@ def cancel_taxi_order_admin(
     
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation_data.cancellation_reason + " (Admin cancelled)"
+    order.cancelled_by_user_id = current_user.id
+    order.cancelled_by_role = current_user.role.value if current_user.role else None
     order.cancelled_at = datetime.now(timezone.utc)
     
     db.commit()
@@ -317,6 +319,8 @@ def cancel_delivery_order_admin(
     
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation_data.cancellation_reason + " (Admin cancelled)"
+    order.cancelled_by_user_id = current_user.id
+    order.cancelled_by_role = current_user.role.value if current_user.role else None
     order.cancelled_at = datetime.now(timezone.utc)
     
     db.commit()

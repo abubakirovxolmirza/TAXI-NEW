@@ -295,7 +295,15 @@ async def check_pending_orders_for_public():
                 )
                 .update({TaxiOrder.is_new: False}, synchronize_session=False)
             )
-            if updated_new_flags:
+            updated_delivery_new_flags = (
+                db.query(DeliveryOrder)
+                .filter(
+                    DeliveryOrder.is_new == True,
+                    DeliveryOrder.created_at <= new_order_threshold,
+                )
+                .update({DeliveryOrder.is_new: False}, synchronize_session=False)
+            )
+            if updated_new_flags or updated_delivery_new_flags:
                 db.commit()
             
             # Find taxi orders that are pending, not public, and have expired pending_time

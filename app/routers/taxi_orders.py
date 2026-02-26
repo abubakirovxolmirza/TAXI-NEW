@@ -109,6 +109,7 @@ async def create_taxi_order(
         note=order_data.note,
         status=OrderStatus.PENDING,
         public_order=False,
+        is_new=True,
         pending_time=default_pending_time
     )
     
@@ -434,6 +435,8 @@ async def cancel_taxi_order(
     # Update order status
     order.status = OrderStatus.CANCELLED
     order.cancellation_reason = cancellation.cancellation_reason
+    order.cancelled_by_user_id = current_user.id
+    order.cancelled_by_role = current_user.role.value if current_user.role else None
     order.cancelled_at = datetime.now(timezone.utc)
     refund_result = apply_service_fee_refund(db, order, "taxi")
 

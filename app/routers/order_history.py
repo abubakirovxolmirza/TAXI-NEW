@@ -66,6 +66,8 @@ def _serialize_order_with_parties(order_type: str, order) -> Dict:
         "completed_at": order.completed_at.isoformat() if getattr(order, "completed_at", None) else None,
         "cancelled_at": getattr(order, "cancelled_at", None).isoformat() if getattr(order, "cancelled_at", None) else None,
         "cancellation_reason": getattr(order, "cancellation_reason", None),
+        "cancelled_by_user_id": getattr(order, "cancelled_by_user_id", None) or getattr(order, "user_id", None),
+        "cancelled_by_role": getattr(order, "cancelled_by_role", None) or "user",
         "driver": driver_info,
         "customer": customer_info,
     }

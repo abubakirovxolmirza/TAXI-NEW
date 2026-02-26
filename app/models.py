@@ -278,6 +278,8 @@ class TaxiOrder(Base):
     is_new = Column(Boolean, default=True, nullable=False)
     pending_time = Column(Integer, nullable=True)  # Time in seconds before order becomes public
     cancellation_reason = Column(Text, nullable=True)
+    cancelled_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    cancelled_by_role = Column(String(20), nullable=True)
     telegram_message_id = Column(Integer, nullable=True)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     confirmed_at = Column(DateTime(timezone=True), nullable=True)  # When driver confirms after accepting
@@ -291,6 +293,7 @@ class TaxiOrder(Base):
     user = relationship("User", back_populates="taxi_orders", foreign_keys=[user_id])
     driver = relationship("Driver", back_populates="taxi_orders", foreign_keys=[driver_id])
     bonus_user = relationship("User", foreign_keys=[bonus_user_id])
+    cancelled_by_user = relationship("User", foreign_keys=[cancelled_by_user_id])
     from_region = relationship("Region", foreign_keys=[from_region_id])
     from_district = relationship("District", foreign_keys=[from_district_id])
     to_region = relationship("Region", foreign_keys=[to_region_id])
@@ -329,8 +332,11 @@ class DeliveryOrder(Base):
     note = Column(Text, nullable=True)
     status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
     public_order = Column(Boolean, default=False, nullable=False)  # If true, order is visible to all drivers
+    is_new = Column(Boolean, default=True, nullable=False)
     pending_time = Column(Integer, nullable=True)  # Time in seconds before order becomes public
     cancellation_reason = Column(Text, nullable=True)
+    cancelled_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    cancelled_by_role = Column(String(20), nullable=True)
     telegram_message_id = Column(Integer, nullable=True)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     confirmed_at = Column(DateTime(timezone=True), nullable=True)  # When driver confirms after accepting
@@ -344,6 +350,7 @@ class DeliveryOrder(Base):
     user = relationship("User", back_populates="delivery_orders", foreign_keys=[user_id])
     driver = relationship("Driver", back_populates="delivery_orders", foreign_keys=[driver_id])
     bonus_user = relationship("User", foreign_keys=[bonus_user_id])
+    cancelled_by_user = relationship("User", foreign_keys=[cancelled_by_user_id])
     from_region = relationship("Region", foreign_keys=[from_region_id])
     from_district = relationship("District", foreign_keys=[from_district_id])
     to_region = relationship("Region", foreign_keys=[to_region_id])

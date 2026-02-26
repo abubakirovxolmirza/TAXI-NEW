@@ -343,6 +343,7 @@ def _serialize_pending_order_for_driver(order: Union[TaxiOrder, DeliveryOrder], 
         base["is_new"] = order.is_new
     if isinstance(order, DeliveryOrder):
         base["item_type"] = _enum_value(order.item_type)
+        base["is_new"] = order.is_new
     return base
 
 
@@ -351,6 +352,7 @@ def _is_order_visible_to_driver(
     driver_id: int,
     driver_tariff: Optional[Tariff] = None,
     driver_has_accepted_order: bool = False,
+    driver_brend: bool = False,
 ) -> bool:
     """
     Determine whether the current driver is allowed to see the order.
@@ -360,6 +362,8 @@ def _is_order_visible_to_driver(
     - Orders assigned to another driver are never visible.
     """
     if isinstance(order, TaxiOrder) and not _can_driver_take_taxi_order(driver_tariff, order.tariff):
+        return False
+    if getattr(order, "is_new", False) and not driver_brend:
         return False
 
     assigned_driver_id = getattr(order, "driver_id", None)
@@ -391,6 +395,7 @@ def _ensure_order_visibility(
         driver.id,
         driver.tariff,
         effective_active,
+        driver.brend,
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -629,6 +634,8 @@ async def _collect_available_orders_for_driver(
                 taxi_query = taxi_query.filter(
                     or_(TaxiOrder.public_order.is_(True), TaxiOrder.driver_id == driver.id),
                 )
+            if not driver.brend:
+                taxi_query = taxi_query.filter(TaxiOrder.is_new.is_(False))
 
             if blocked_taxi_ids:
                 taxi_query = taxi_query.filter(~TaxiOrder.id.in_(blocked_taxi_ids))
@@ -669,6 +676,8 @@ async def _collect_available_orders_for_driver(
             delivery_query = delivery_query.filter(
                 or_(DeliveryOrder.public_order.is_(True), DeliveryOrder.driver_id == driver.id),
             )
+        if not driver.brend:
+            delivery_query = delivery_query.filter(DeliveryOrder.is_new.is_(False))
 
         if blocked_delivery_ids:
             delivery_query = delivery_query.filter(
@@ -741,6 +750,7 @@ async def _collect_available_orders_for_driver(
                     "to_region_id": order.to_region_id,
                     "to_district_id": order.to_district_id,
                     "item_type": order.item_type.value,
+                    "is_new": order.is_new,
                     "price": str(order.price),
                     "date": order.date,
                     "time_start": order.time_start,
@@ -1298,6 +1308,7 @@ def get_driver_balance_history(
     return {
         "total": len(filtered),
         "current_balance": driver.balance,
+        "vip": driver.vip,
         "transactions": [
             {
                 "id": transaction.id,
@@ -1435,6 +1446,7 @@ def get_my_orders(
                     "dropoff_latitude": order.dropoff_latitude,
                     "dropoff_longitude": order.dropoff_longitude,
                     "item_type": order.item_type.value,
+                    "is_new": order.is_new,
                     "price": str(order.price),
                     "service_fee": str(order.service_fee),
                     "driver_earnings": str(order.driver_earnings),

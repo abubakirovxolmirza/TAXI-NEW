@@ -14,6 +14,7 @@ from app.auth import get_password_hash
 from app.config import settings
 from app.models import (
     BalanceTransaction,
+    DeviceToken,
     Driver,
     District,
     Language,
@@ -26,6 +27,7 @@ from app.models import (
     User,
     UserRole,
 )
+from app.services.fcm import send_push_to_tokens
 from app.websocket import manager
 from app.localization import get_notification_message
 
@@ -324,6 +326,34 @@ def create_notification(
     db.add(notification)
     db.commit()
     db.refresh(notification)
+
+    # Send push notifications so OS can display alerts when app is closed/terminated.
+    target_user_ids = set()
+    if user_id:
+        target_user_ids.add(user_id)
+    if driver_id:
+        driver = db.query(Driver).filter(Driver.id == driver_id).first()
+        if driver and driver.user_id:
+            target_user_ids.add(driver.user_id)
+
+    if target_user_ids:
+        tokens = (
+            db.query(DeviceToken)
+            .filter(DeviceToken.user_id.in_(target_user_ids), DeviceToken.is_active == True)
+            .all()
+        )
+        push_data = dict(data or {})
+        push_data.setdefault("type", "notification")
+        push_data.setdefault("notification_id", str(notification.id))
+        push_data.setdefault("notification_type", notification_type)
+        send_push_to_tokens(
+            db=db,
+            device_tokens=tokens,
+            title=title,
+            body=resolved_body,
+            data=push_data,
+        )
+
     _dispatch_notification_event(notification)
     if driver_status_payload:
         target_user_id = (
@@ -401,6 +431,8 @@ def apply_service_fee_charge(
 
     driver = db.query(Driver).filter(Driver.id == driver_id).first()
     if not driver:
+        return None
+    if driver.vip:
         return None
 
     fee_amount = getattr(order, "service_fee", None)
