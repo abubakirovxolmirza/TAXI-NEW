@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.session import get_async_db
 from app.localization import get_notification_message
-from app.models import Driver, Notification, PaymentLog, TopUpStatus, TopUpTransaction, User
+from app.models import DeviceToken, Driver, Notification, PaymentLog, TopUpStatus, TopUpTransaction, User
+from app.services.fcm import send_push_once_to_token
 from app.services.click_sign import is_valid_complete_sign, is_valid_prepare_sign
 from app.services.phone import digits_only, normalize_phone
 from app.services.topup_service import (
@@ -294,15 +295,33 @@ async def click_complete(
                         description=f"Click topup via Click. click_trans_id={click_ref}",
                     )
                     notification = get_notification_message("balance_added", amount=topup.amount)
+                    notification_body = notification["message"]
                     session.add(
                         Notification(
                             driver_id=driver.id,
                             title=notification["title"],
-                            message=notification["message"],
-                            body=notification["message"],
+                            message=notification_body,
+                            body=notification_body,
                             notification_type="balance_added",
                         )
                     )
+                    token_rows = await session.execute(
+                        select(DeviceToken.token).where(
+                            DeviceToken.user_id == driver.user_id,
+                            DeviceToken.is_active == True,
+                        )
+                    )
+                    device_tokens = [row[0] for row in token_rows.all() if row[0]]
+                    for token in device_tokens:
+                        send_push_once_to_token(
+                            token=token,
+                            title=notification["title"],
+                            body=notification_body,
+                            data={
+                                "type": "notification",
+                                "notification_type": "balance_added",
+                            },
+                        )
                     topup.status = TopUpStatus.PAID
                     topup.paid_at = utc_now()
                     if topup.merchant_confirm_id is None:
