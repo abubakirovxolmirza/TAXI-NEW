@@ -159,3 +159,49 @@ def send_push_to_tokens(
 
     db.commit()
     return result
+
+
+def send_push_once_to_token(
+    token: str,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    app = get_firebase_app()
+    if app is None:
+        return {
+            "success": False,
+            "message_id": None,
+            "skipped": True,
+            "reason": "fcm_not_configured",
+        }
+
+    payload = _stringify_data(data)
+    message = messaging.Message(
+        token=token,
+        notification=messaging.Notification(title=title, body=body),
+        data=payload,
+        android=messaging.AndroidConfig(priority="high"),
+        apns=messaging.APNSConfig(
+            payload=messaging.APNSPayload(
+                aps=messaging.Aps(sound="default", content_available=True)
+            )
+        ),
+    )
+
+    try:
+        message_id = messaging.send(message, app=app)
+        return {
+            "success": True,
+            "message_id": message_id,
+            "skipped": False,
+            "reason": None,
+        }
+    except Exception as exc:
+        logger.exception("FCM send_once failed")
+        return {
+            "success": False,
+            "message_id": None,
+            "skipped": False,
+            "reason": str(exc),
+        }
