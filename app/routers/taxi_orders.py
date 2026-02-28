@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, func
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
@@ -28,6 +28,13 @@ def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[
     safe_limit = DEFAULT_PAGE_SIZE if limit is None or limit <= 0 else min(limit, MAX_PAGE_SIZE)
     safe_offset = 0 if offset is None or offset < 0 else offset
     return safe_limit, safe_offset
+
+
+def _taxi_order_query(db: Session):
+    return db.query(TaxiOrder).options(
+        joinedload(TaxiOrder.driver).joinedload(Driver.user)
+    )
+
 
 router = APIRouter(prefix="/api/taxi-orders", tags=["Taxi Orders"])
 
@@ -190,7 +197,7 @@ def get_all_taxi_orders(
 ):
     """Get all taxi orders"""
     limit, offset = _normalize_pagination(limit, offset)
-    query = db.query(TaxiOrder)
+    query = _taxi_order_query(db)
     
     if status_filter:
         query = query.filter(TaxiOrder.status == status_filter)
@@ -208,7 +215,7 @@ def get_active_taxi_orders(
 ):
     """Get active taxi orders (pending or accepted)"""
     limit, offset = _normalize_pagination(limit, offset)
-    orders = db.query(TaxiOrder).filter(
+    orders = _taxi_order_query(db).filter(
         TaxiOrder.user_id == current_user.id,
         TaxiOrder.status.in_([OrderStatus.PENDING, OrderStatus.ACCEPTED])
     ).order_by(TaxiOrder.created_at.desc()).offset(offset).limit(limit).all()
@@ -225,7 +232,7 @@ def get_taxi_order_history(
 ):
     """Get completed and cancelled taxi orders"""
     limit, offset = _normalize_pagination(limit, offset)
-    orders = db.query(TaxiOrder).filter(
+    orders = _taxi_order_query(db).filter(
         TaxiOrder.user_id == current_user.id,
         TaxiOrder.status.in_([OrderStatus.COMPLETED, OrderStatus.CANCELLED])
     ).order_by(TaxiOrder.completed_at.desc()).offset(offset).limit(limit).all()
@@ -240,7 +247,7 @@ def get_taxi_order(
     db: Session = Depends(get_db)
 ):
     """Get taxi order details"""
-    order = db.query(TaxiOrder).filter(TaxiOrder.id == order_id).first()
+    order = _taxi_order_query(db).filter(TaxiOrder.id == order_id).first()
     
     if not order:
         raise HTTPException(

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, timezone
 from app.database import get_db
@@ -27,6 +27,13 @@ def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[
     safe_limit = DEFAULT_PAGE_SIZE if limit is None or limit <= 0 else min(limit, MAX_PAGE_SIZE)
     safe_offset = 0 if offset is None or offset < 0 else offset
     return safe_limit, safe_offset
+
+
+def _delivery_order_query(db: Session):
+    return db.query(DeliveryOrder).options(
+        joinedload(DeliveryOrder.driver).joinedload(Driver.user)
+    )
+
 
 router = APIRouter(prefix="/api/delivery-orders", tags=["Delivery Orders"])
 
@@ -166,7 +173,7 @@ def get_all_delivery_orders(
 ):
     """Get all delivery orders"""
     limit, offset = _normalize_pagination(limit, offset)
-    query = db.query(DeliveryOrder)
+    query = _delivery_order_query(db)
     
     if status_filter:
         query = query.filter(DeliveryOrder.status == status_filter)
@@ -184,7 +191,7 @@ def get_active_delivery_orders(
 ):
     """Get active delivery orders (pending or accepted)"""
     limit, offset = _normalize_pagination(limit, offset)
-    orders = db.query(DeliveryOrder).filter(
+    orders = _delivery_order_query(db).filter(
         DeliveryOrder.user_id == current_user.id,
         DeliveryOrder.status.in_([OrderStatus.PENDING, OrderStatus.ACCEPTED])
     ).order_by(DeliveryOrder.created_at.desc()).offset(offset).limit(limit).all()
@@ -201,7 +208,7 @@ def get_delivery_order_history(
 ):
     """Get completed and cancelled delivery orders"""
     limit, offset = _normalize_pagination(limit, offset)
-    orders = db.query(DeliveryOrder).filter(
+    orders = _delivery_order_query(db).filter(
         DeliveryOrder.user_id == current_user.id,
         DeliveryOrder.status.in_([OrderStatus.COMPLETED, OrderStatus.CANCELLED])
     ).order_by(DeliveryOrder.completed_at.desc()).offset(offset).limit(limit).all()
@@ -216,7 +223,7 @@ def get_delivery_order(
     db: Session = Depends(get_db)
 ):
     """Get delivery order details"""
-    order = db.query(DeliveryOrder).filter(DeliveryOrder.id == order_id).first()
+    order = _delivery_order_query(db).filter(DeliveryOrder.id == order_id).first()
     
     if not order:
         raise HTTPException(

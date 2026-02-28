@@ -309,6 +309,19 @@ class TaxiOrderUpdate(BaseModel):
     status: Optional[OrderStatus] = None
 
 
+class TaxiOrderDriverInfo(BaseModel):
+    id: int
+    full_name: str
+    telephone: Optional[str]
+    car_model: str
+    car_number: str
+    rating: Decimal
+    tariff: Tariff
+
+    class Config:
+        from_attributes = True
+
+
 class TaxiOrderResponse(BaseModel):
     id: int
     user_id: int
@@ -351,6 +364,7 @@ class TaxiOrderResponse(BaseModel):
     confirmed_at: Optional[datetime]
     is_confirmed: bool
     completed_at: Optional[datetime]
+    driver: Optional[TaxiOrderDriverInfo] = None
     
     class Config:
         from_attributes = True
@@ -446,6 +460,7 @@ class DeliveryOrderResponse(BaseModel):
     confirmed_at: Optional[datetime]
     is_confirmed: bool
     completed_at: Optional[datetime]
+    driver: Optional[TaxiOrderDriverInfo] = None
     
     class Config:
         from_attributes = True

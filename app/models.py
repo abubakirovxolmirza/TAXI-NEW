@@ -181,6 +181,10 @@ class Driver(Base):
     ratings_received = relationship("Rating", back_populates="driver", foreign_keys="Rating.driver_id")
     balance_transactions = relationship("BalanceTransaction", back_populates="driver")
 
+    @property
+    def telephone(self):
+        return self.user.telephone if self.user else None
+
 
 class Region(Base):
     __tablename__ = "regions"
