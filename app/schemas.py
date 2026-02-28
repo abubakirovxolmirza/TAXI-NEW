@@ -313,6 +313,7 @@ class TaxiOrderDriverInfo(BaseModel):
     id: int
     full_name: str
     telephone: Optional[str]
+    profile_picture: Optional[str]
     car_model: str
     car_number: str
     rating: Decimal

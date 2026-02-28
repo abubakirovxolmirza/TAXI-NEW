@@ -185,6 +185,10 @@ class Driver(Base):
     def telephone(self):
         return self.user.telephone if self.user else None
 
+    @property
+    def profile_picture(self):
+        return self.user.profile_picture if self.user else None
+
 
 class Region(Base):
     __tablename__ = "regions"
