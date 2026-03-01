@@ -3,12 +3,14 @@ Background tasks for order management
 """
 import asyncio
 from datetime import datetime, timedelta, timezone
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models import TaxiOrder, DeliveryOrder, OrderStatus, Driver
+from app.models import TaxiOrder, DeliveryOrder, OrderStatus, Driver, DeviceToken
 from app.utils import create_notification, get_seat_visibility_timeout_minutes, get_uzbek_time
 from app.localization import get_notification_message
 from app.websocket import manager
+from app.services.fcm import send_push_to_tokens
 from app.routers.driver import (
     _broadcast_order_to_eligible_drivers,
     _serialize_pending_order_for_driver,
@@ -16,6 +18,53 @@ from app.routers.driver import (
 
 # Uzbekistan timezone (UTC+5)
 UZBEKISTAN_TZ = timezone(timedelta(hours=5))
+
+
+def _send_new_order_push_to_working_drivers(
+    db: Session,
+    *,
+    order_id: int,
+    order_type: str,
+):
+    # Keep only latest active token per driver user.
+    latest_token_subquery = (
+        db.query(
+            DeviceToken.user_id.label("user_id"),
+            func.max(DeviceToken.id).label("latest_id"),
+        )
+        .filter(DeviceToken.is_active == True)
+        .group_by(DeviceToken.user_id)
+        .subquery()
+    )
+
+    latest_driver_tokens = (
+        db.query(DeviceToken)
+        .join(latest_token_subquery, DeviceToken.id == latest_token_subquery.c.latest_id)
+        .join(Driver, Driver.user_id == DeviceToken.user_id)
+        .filter(
+            Driver.is_worked == True,
+            Driver.is_blocked == False,
+        )
+        .all()
+    )
+
+    if not latest_driver_tokens:
+        return
+
+    send_push_to_tokens(
+        db=db,
+        device_tokens=latest_driver_tokens,
+        title="Yangi buyurtma",
+        body="Sizga yangi buyurtma keldi",
+        data={
+            "type": "new_order",
+            "order_id": str(order_id),
+            "order_type": order_type,
+            "deep_link": f"tashkentgo://order/{order_id}",
+        },
+        android_channel_id="high_importance_channel",
+        android_priority="high",
+    )
 
 
 async def check_unconfirmed_orders():
@@ -350,6 +399,11 @@ async def check_pending_orders_for_public():
                         "order_type": "taxi",
                         "order": _serialize_pending_order_for_driver(order, "taxi")
                     })
+                    _send_new_order_push_to_working_drivers(
+                        db,
+                        order_id=order.id,
+                        order_type="taxi",
+                    )
                     
                     print(f"[TASK] Taxi order #{order.id} is now public after {order.pending_time} seconds")
             
@@ -381,6 +435,11 @@ async def check_pending_orders_for_public():
                         "order_type": "delivery",
                         "order": _serialize_pending_order_for_driver(order, "delivery")
                     })
+                    _send_new_order_push_to_working_drivers(
+                        db,
+                        order_id=order.id,
+                        order_type="delivery",
+                    )
                     
                     print(f"[TASK] Delivery order #{order.id} is now public after {order.pending_time} seconds")
             

@@ -82,12 +82,9 @@ def _is_invalid_token_error(exc: Exception) -> bool:
 
 def _deactivate_tokens(db: Session, tokens: Iterable[DeviceToken]) -> int:
     changed = 0
-    now = _utc_now()
     for token in tokens:
-        if token.is_active:
-            token.is_active = False
-            token.updated_at = now
-            changed += 1
+        db.delete(token)
+        changed += 1
     return changed
 
 
@@ -97,6 +94,8 @@ def send_push_to_tokens(
     title: str,
     body: str,
     data: Optional[Dict[str, Any]] = None,
+    android_channel_id: str = "high_importance_channel",
+    android_priority: str = "high",
 ) -> Dict[str, Any]:
     app = get_firebase_app()
     active_tokens = [token for token in device_tokens if token and token.is_active and token.token]
@@ -128,7 +127,12 @@ def send_push_to_tokens(
             tokens=batch_tokens,
             notification=messaging.Notification(title=title, body=body),
             data=payload,
-            android=messaging.AndroidConfig(priority="high"),
+            android=messaging.AndroidConfig(
+                priority=android_priority,
+                notification=messaging.AndroidNotification(
+                    channel_id=android_channel_id,
+                ),
+            ),
             apns=messaging.APNSConfig(
                 payload=messaging.APNSPayload(
                     aps=messaging.Aps(sound="default", content_available=True)
@@ -166,6 +170,8 @@ def send_push_once_to_token(
     title: str,
     body: str,
     data: Optional[Dict[str, Any]] = None,
+    android_channel_id: str = "high_importance_channel",
+    android_priority: str = "high",
 ) -> Dict[str, Any]:
     app = get_firebase_app()
     if app is None:
@@ -181,7 +187,12 @@ def send_push_once_to_token(
         token=token,
         notification=messaging.Notification(title=title, body=body),
         data=payload,
-        android=messaging.AndroidConfig(priority="high"),
+        android=messaging.AndroidConfig(
+            priority=android_priority,
+            notification=messaging.AndroidNotification(
+                channel_id=android_channel_id,
+            ),
+        ),
         apns=messaging.APNSConfig(
             payload=messaging.APNSPayload(
                 aps=messaging.Aps(sound="default", content_available=True)
