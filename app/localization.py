@@ -133,6 +133,14 @@ NOTIFICATIONS = {
         "title": "Parol tiklandi",
         "message": "Parolingiz admin tomonidan tiklandi."
     },
+    "application_approved": {
+        "title": "Ariza tasdiqlandi",
+        "message": "Tabriklaymiz! Haydovchilik arizangiz tasdiqlandi."
+    },
+    "application_rejected": {
+        "title": "Ariza rad etildi",
+        "message": "Haydovchilik arizangiz rad etildi. Sabab: {reason}"
+    },
     
     # WebSocket notifications
     "websocket_connected": {

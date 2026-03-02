@@ -12,6 +12,7 @@ from app.models import (
     SeatType,
     Tariff,
     DevicePlatform,
+    DriverPhotoControlStatus,
 )
 
 
@@ -530,6 +531,7 @@ class DriverResponse(BaseModel):
     brend: bool
     is_blocked: bool
     is_worked: bool
+    control: bool
     created_at: datetime
     
     class Config:
@@ -564,6 +566,66 @@ class DriverStatistics(BaseModel):
     total_revenue: Decimal
     current_balance: Decimal
     rating: Decimal
+
+
+class DriverPhotoControlSubmitRequest(BaseModel):
+    front_image: str = Field(..., min_length=1, max_length=255)
+    back_image: str = Field(..., min_length=1, max_length=255)
+    front_salon: str = Field(..., min_length=1, max_length=255)
+    back_salon: str = Field(..., min_length=1, max_length=255)
+    trunk_image: str = Field(..., min_length=1, max_length=255)
+
+
+class DriverPhotoControlReviewRequest(BaseModel):
+    approved: bool
+    rejection_reason: Optional[str] = Field(default=None, max_length=500)
+
+    @validator("rejection_reason", always=True)
+    def validate_rejection_reason(cls, v, values):
+        if values.get("approved") is False and not (v and v.strip()):
+            raise ValueError("rejection_reason is required when approved is false")
+        return v
+
+
+class DriverPhotoControlToggleRequest(BaseModel):
+    control: bool
+
+
+class DriverPhotoControlIntervalUpdate(BaseModel):
+    days: int = Field(..., ge=1, le=365)
+
+
+class DriverPhotoControlResponse(BaseModel):
+    id: int
+    driver_id: int
+    front_image: str
+    back_image: str
+    front_salon: str
+    back_salon: str
+    trunk_image: str
+    status: DriverPhotoControlStatus
+    rejection_reason: Optional[str] = None
+    created_at: datetime
+    approved_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class DriverPhotoControlCheckResponse(BaseModel):
+    required: bool
+    can_submit_now: bool
+    window_start_hour: int
+    window_end_hour: int
+    interval_days: int
+    status: str
+    latest: Optional[DriverPhotoControlResponse] = None
+    next_due_at: Optional[datetime] = None
+
+
+class DriverPhotoControlUploadResponse(BaseModel):
+    message: str
+    file_path: str
 
 
 # Rating Schemas

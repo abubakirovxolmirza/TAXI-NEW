@@ -117,10 +117,9 @@ def review_application(
         if user:
             user.role = UserRole.DRIVER
 
-        approval_title = "Application Approved"
-        approval_message = (
-            "Congratulations! Your driver application has been approved."
-        )
+        approval_notification = get_notification_message("application_approved")
+        approval_title = approval_notification["title"]
+        approval_message = approval_notification["message"]
 
         driver_status_event = {
             "status": "approved",
@@ -144,11 +143,13 @@ def review_application(
         application.status = ApplicationStatus.REJECTED
         application.rejection_reason = review_data.rejection_reason
 
-        rejection_title = "Application Rejected"
-        rejection_reason = review_data.rejection_reason or "No reason provided"
-        rejection_message = (
-            f"Your driver application has been rejected. Reason: {rejection_reason}"
+        rejection_reason = review_data.rejection_reason or "Sabab ko'rsatilmagan"
+        rejection_notification = get_notification_message(
+            "application_rejected",
+            reason=rejection_reason,
         )
+        rejection_title = rejection_notification["title"]
+        rejection_message = rejection_notification["message"]
 
         driver_status_event = {
             "status": "rejected",

@@ -3,10 +3,20 @@ Background tasks for order management
 """
 import asyncio
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.database import SessionLocal
-from app.models import TaxiOrder, DeliveryOrder, OrderStatus, Driver, DeviceToken
+from app.models import (
+    TaxiOrder,
+    DeliveryOrder,
+    OrderStatus,
+    Driver,
+    DeviceToken,
+    DriverPhotoControl,
+    SystemSettings,
+)
 from app.utils import create_notification, get_seat_visibility_timeout_minutes, get_uzbek_time
 from app.localization import get_notification_message
 from app.websocket import manager
@@ -18,6 +28,8 @@ from app.routers.driver import (
 
 # Uzbekistan timezone (UTC+5)
 UZBEKISTAN_TZ = timezone(timedelta(hours=5))
+PHOTO_CONTROL_INTERVAL_SETTING_KEY = "driver_photo_control_interval_days"
+DEFAULT_PHOTO_CONTROL_INTERVAL_DAYS = 15
 
 
 def _send_new_order_push_to_working_drivers(
@@ -486,9 +498,75 @@ async def check_expired_driver_vip():
         await asyncio.sleep(60)
 
 
+def _photo_control_interval_days(db: Session) -> int:
+    setting = db.query(SystemSettings).filter(
+        SystemSettings.setting_key == PHOTO_CONTROL_INTERVAL_SETTING_KEY
+    ).first()
+    if not setting:
+        return DEFAULT_PHOTO_CONTROL_INTERVAL_DAYS
+    try:
+        value = int(setting.setting_value)
+    except (TypeError, ValueError):
+        return DEFAULT_PHOTO_CONTROL_INTERVAL_DAYS
+    return value if value > 0 else DEFAULT_PHOTO_CONTROL_INTERVAL_DAYS
+
+
+def _resolve_upload_file_path(image_path: str) -> Path:
+    candidate = Path(str(image_path).strip())
+    if candidate.is_absolute():
+        return candidate
+    if str(candidate).startswith("uploads/"):
+        return Path.cwd() / candidate
+    return Path(settings.UPLOAD_DIR) / candidate
+
+
+async def cleanup_expired_driver_photocontrol_images():
+    """
+    Delete photo-control images and DB rows after 2x configured interval.
+    Runs every 6 hours.
+    """
+    while True:
+        db: Session | None = None
+        try:
+            db = SessionLocal()
+            interval_days = _photo_control_interval_days(db)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=interval_days * 2)
+
+            expired_rows = (
+                db.query(DriverPhotoControl)
+                .filter(DriverPhotoControl.created_at <= cutoff)
+                .all()
+            )
+            if expired_rows:
+                for row in expired_rows:
+                    for field_name in ("front_image", "back_image", "front_salon", "back_salon", "trunk_image"):
+                        image_path = getattr(row, field_name, None)
+                        if not image_path:
+                            continue
+                        file_path = _resolve_upload_file_path(image_path)
+                        try:
+                            if file_path.exists() and file_path.is_file():
+                                file_path.unlink()
+                        except Exception:
+                            pass
+                    db.delete(row)
+                db.commit()
+                print(f"[TASK] Deleted {len(expired_rows)} expired driver photo control records")
+        except Exception as e:
+            print(f"[TASK ERROR] cleanup_expired_driver_photocontrol_images: {str(e)}")
+            if db is not None:
+                db.rollback()
+        finally:
+            if db is not None:
+                db.close()
+
+        await asyncio.sleep(6 * 60 * 60)
+
+
 def start_background_tasks():
     """Start all background tasks"""
     asyncio.create_task(check_unconfirmed_orders())
     asyncio.create_task(check_pending_orders_for_public())
     asyncio.create_task(check_expired_driver_vip())
+    asyncio.create_task(cleanup_expired_driver_photocontrol_images())
     print("[TASKS] Background tasks started")

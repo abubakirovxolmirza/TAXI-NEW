@@ -74,6 +74,12 @@ class DevicePlatform(str, enum.Enum):
     WEB = "web"
 
 
+class DriverPhotoControlStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class User(Base):
     __tablename__ = "users"
     
@@ -171,6 +177,7 @@ class Driver(Base):
     )
     is_blocked = Column(Boolean, default=False, nullable=False)
     is_worked = Column(Boolean, default=False, nullable=False)
+    control = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -180,6 +187,7 @@ class Driver(Base):
     delivery_orders = relationship("DeliveryOrder", back_populates="driver", foreign_keys="DeliveryOrder.driver_id")
     ratings_received = relationship("Rating", back_populates="driver", foreign_keys="Rating.driver_id")
     balance_transactions = relationship("BalanceTransaction", back_populates="driver")
+    photo_controls = relationship("DriverPhotoControl", back_populates="driver", foreign_keys="DriverPhotoControl.driver_id")
 
     @property
     def telephone(self):
@@ -489,6 +497,32 @@ class DeviceToken(Base):
     last_seen_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="device_tokens", foreign_keys=[user_id])
+
+
+class DriverPhotoControl(Base):
+    __tablename__ = "driver_photocontrols"
+
+    id = Column(Integer, primary_key=True, index=True)
+    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False, index=True)
+    front_image = Column(String(255), nullable=False)
+    back_image = Column(String(255), nullable=False)
+    front_salon = Column(String(255), nullable=False)
+    back_salon = Column(String(255), nullable=False)
+    trunk_image = Column(String(255), nullable=False)
+    status = Column(
+        SQLEnum(
+            DriverPhotoControlStatus,
+            name="driver_photo_control_status",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=DriverPhotoControlStatus.PENDING,
+    )
+    rejection_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+
+    driver = relationship("Driver", back_populates="photo_controls", foreign_keys=[driver_id])
 
 
 class Feedback(Base):
