@@ -270,13 +270,18 @@ def get_delivery_order_history(
     """Get completed and cancelled delivery orders"""
     limit, offset = _normalize_pagination(limit, offset)
     receiver_condition = _receiver_match_condition(current_user.telephone)
+    history_ordering = func.coalesce(
+        DeliveryOrder.completed_at,
+        DeliveryOrder.cancelled_at,
+        DeliveryOrder.created_at,
+    )
     orders = _delivery_order_query(db).filter(
         or_(
             DeliveryOrder.user_id == current_user.id,
             receiver_condition,
         ),
         DeliveryOrder.status.in_([OrderStatus.COMPLETED, OrderStatus.CANCELLED])
-    ).order_by(DeliveryOrder.completed_at.desc()).offset(offset).limit(limit).all()
+    ).order_by(history_ordering.desc()).offset(offset).limit(limit).all()
     
     return orders
 

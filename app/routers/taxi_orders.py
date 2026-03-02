@@ -232,10 +232,11 @@ def get_taxi_order_history(
 ):
     """Get completed and cancelled taxi orders"""
     limit, offset = _normalize_pagination(limit, offset)
+    history_ordering = func.coalesce(TaxiOrder.completed_at, TaxiOrder.cancelled_at, TaxiOrder.created_at)
     orders = _taxi_order_query(db).filter(
         TaxiOrder.user_id == current_user.id,
         TaxiOrder.status.in_([OrderStatus.COMPLETED, OrderStatus.CANCELLED])
-    ).order_by(TaxiOrder.completed_at.desc()).offset(offset).limit(limit).all()
+    ).order_by(history_ordering.desc()).offset(offset).limit(limit).all()
     
     return orders
 
