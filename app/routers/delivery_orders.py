@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, or_
 from typing import List, Optional
 from datetime import datetime, timezone
 from app.database import get_db
 from app.models import User, DeliveryOrder, OrderStatus, Driver, UserRole
 from app.schemas import DeliveryOrderCreate, DeliveryOrderResponse, OrderCancellation, BulkDeleteRequest
 from app.auth import get_current_user, get_optional_user
+from app.services.phone import digits_only, normalize_phone
 from app.utils import (
     apply_service_fee_refund,
     calculate_delivery_price,
@@ -33,6 +35,61 @@ def _delivery_order_query(db: Session):
     return db.query(DeliveryOrder).options(
         joinedload(DeliveryOrder.driver).joinedload(Driver.user)
     )
+
+
+def _phone_variants(phone: Optional[str]) -> set[str]:
+    if not phone:
+        return set()
+
+    raw = str(phone).strip()
+    variants = {raw} if raw else set()
+    normalized = normalize_phone(raw)
+    if normalized:
+        variants.add(normalized)
+    digits = digits_only(raw)
+    if digits:
+        variants.add(digits)
+        if digits.startswith("998") and len(digits) == 12:
+            variants.add(f"+{digits}")
+            variants.add(f"0{digits[3:]}")
+            variants.add(digits[3:])
+    return {item for item in variants if item}
+
+
+def _receiver_match_condition(user_phone: Optional[str]):
+    phone_variants = _phone_variants(user_phone)
+    if not phone_variants:
+        return DeliveryOrder.id == -1
+
+    digit_variants = {
+        "".join(ch for ch in value if ch.isdigit())
+        for value in phone_variants
+        if any(ch.isdigit() for ch in value)
+    }
+    digit_variants = {value for value in digit_variants if value}
+
+    receiver_digits = func.regexp_replace(DeliveryOrder.receiver_telephone, r"\D", "", "g")
+    clauses = [DeliveryOrder.receiver_telephone.in_(phone_variants)]
+    if digit_variants:
+        clauses.append(receiver_digits.in_(digit_variants))
+    return or_(*clauses)
+
+
+def _is_order_receiver(order: DeliveryOrder, user_phone: Optional[str]) -> bool:
+    if not user_phone:
+        return False
+    variants = _phone_variants(user_phone)
+    if not variants:
+        return False
+
+    receiver_phone = str(order.receiver_telephone or "").strip()
+    if receiver_phone in variants:
+        return True
+
+    receiver_digits = "".join(ch for ch in receiver_phone if ch.isdigit())
+    return bool(receiver_digits and receiver_digits in {
+        "".join(ch for ch in value if ch.isdigit()) for value in variants
+    })
 
 
 router = APIRouter(prefix="/api/delivery-orders", tags=["Delivery Orders"])
@@ -191,8 +248,12 @@ def get_active_delivery_orders(
 ):
     """Get active delivery orders (pending or accepted)"""
     limit, offset = _normalize_pagination(limit, offset)
+    receiver_condition = _receiver_match_condition(current_user.telephone)
     orders = _delivery_order_query(db).filter(
-        DeliveryOrder.user_id == current_user.id,
+        or_(
+            DeliveryOrder.user_id == current_user.id,
+            receiver_condition,
+        ),
         DeliveryOrder.status.in_([OrderStatus.PENDING, OrderStatus.ACCEPTED])
     ).order_by(DeliveryOrder.created_at.desc()).offset(offset).limit(limit).all()
     
@@ -208,8 +269,12 @@ def get_delivery_order_history(
 ):
     """Get completed and cancelled delivery orders"""
     limit, offset = _normalize_pagination(limit, offset)
+    receiver_condition = _receiver_match_condition(current_user.telephone)
     orders = _delivery_order_query(db).filter(
-        DeliveryOrder.user_id == current_user.id,
+        or_(
+            DeliveryOrder.user_id == current_user.id,
+            receiver_condition,
+        ),
         DeliveryOrder.status.in_([OrderStatus.COMPLETED, OrderStatus.CANCELLED])
     ).order_by(DeliveryOrder.completed_at.desc()).offset(offset).limit(limit).all()
     
@@ -233,7 +298,9 @@ def get_delivery_order(
     
     # Check if user owns the order or is the assigned driver
     if order.user_id != current_user.id:
-        if current_user.driver_profile and order.driver_id != current_user.driver_profile.id:
+        is_driver = current_user.driver_profile and order.driver_id == current_user.driver_profile.id
+        is_receiver = _is_order_receiver(order, current_user.telephone)
+        if not is_driver and not is_receiver:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to view this order"
