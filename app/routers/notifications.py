@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
@@ -24,23 +24,28 @@ router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
 @router.get("/", response_model=List[NotificationResponse])
 def get_my_notifications(
-    user_id: Optional[int] = None,
+    user_id: Optional[int] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get current user's notifications"""
-    target_user_id = current_user.id
     if user_id is not None:
-        if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+        if current_user.role not in {UserRole.ADMIN, UserRole.SUPERADMIN} and user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admin can query notifications by user_id",
+                detail="Not enough permissions",
             )
-        target_user_id = user_id
+        notifications = (
+            db.query(Notification)
+            .filter(Notification.user_id == user_id)
+            .order_by(Notification.created_at.desc())
+            .all()
+        )
+        return notifications
 
     # Get user notifications
     notifications = db.query(Notification).filter(
-        Notification.user_id == target_user_id
+        Notification.user_id == current_user.id
     )
     
     # If user is also a driver, get driver notifications

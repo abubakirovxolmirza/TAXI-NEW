@@ -213,6 +213,7 @@ def send_push_once_to_token(
     body: str,
     data: Optional[Dict[str, Any]] = None,
     android_channel_id: str = "high_importance_channel",
+    android_priority: str = "high",
     android_sound: str = "order_sound",
     ios_sound: str = "default",
 ) -> Dict[str, Any]:
@@ -296,6 +297,7 @@ def send_push_to_tokens(
     body: str,
     data: Optional[Dict[str, Any]] = None,
     android_channel_id: str = "high_importance_channel",
+    android_priority: str = "high",
     android_sound: str = "order_sound",
     ios_sound: str = "default",
 ) -> Dict[str, Any]:
@@ -320,6 +322,7 @@ def send_push_to_tokens(
             body=body,
             data=data,
             android_channel_id=android_channel_id,
+            android_priority=android_priority,
             android_sound=android_sound,
             ios_sound=ios_sound,
         )
