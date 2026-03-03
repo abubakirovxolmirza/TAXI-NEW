@@ -52,3 +52,10 @@ Thumbs.db
 
 
 servise-account.json
+
+
+echo "servise-account.json" >> .gitignore
+echo "service-account.json" >> .gitignore
+echo "*firebase-adminsdk*.json" >> .gitignoreservise-account.json
+service-account.json
+*firebase-adminsdk*.json
