@@ -895,6 +895,13 @@ class DeviceTokenActionResponse(BaseModel):
     device_token: Optional[DeviceTokenResponse] = None
 
 
+class DeviceRegisterRequest(BaseModel):
+    user_id: Optional[int] = None
+    driver_id: Optional[int] = None
+    token: str = Field(..., min_length=20, max_length=2048)
+    platform: Optional[DevicePlatform] = DevicePlatform.ANDROID
+
+
 class NotificationSendRequest(BaseModel):
     user_id: int
     title: str = Field(..., min_length=1, max_length=200)
@@ -927,6 +934,15 @@ class NotificationBroadcastResponse(BaseModel):
     success: bool
     notifications_created: int
     push: PushSendSummary
+
+
+class NotificationCreateRequest(BaseModel):
+    user_id: Optional[int] = None
+    driver_id: Optional[int] = None
+    title: str = Field(..., min_length=1, max_length=200)
+    body: str = Field(..., min_length=1)
+    type: str = Field(default="message", min_length=1, max_length=100)
+    data: Optional[dict] = None
 
 
 # Order Cancellation Schema

@@ -1,30 +1,46 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.database import get_db
-from app.models import User, Notification, DeviceToken
+from app.models import User, Notification, DeviceToken, UserRole
 from app.schemas import (
     NotificationResponse,
     NotificationSendRequest,
     NotificationSendResponse,
     NotificationBroadcastRequest,
     NotificationBroadcastResponse,
+    NotificationCreateRequest,
 )
 from app.auth import get_current_user, get_current_admin
 from app.services.fcm import send_push_to_tokens
+from app.repositories.notifications_repo import (
+    create_notification as repo_create_notification,
+    get_active_tokens_for_user_ids,
+    resolve_target_user_ids,
+)
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
 
 @router.get("/", response_model=List[NotificationResponse])
 def get_my_notifications(
+    user_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get current user's notifications"""
+    target_user_id = current_user.id
+    if user_id is not None:
+        if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admin can query notifications by user_id",
+            )
+        target_user_id = user_id
+
     # Get user notifications
     notifications = db.query(Notification).filter(
-        Notification.user_id == current_user.id
+        Notification.user_id == target_user_id
     )
     
     # If user is also a driver, get driver notifications
@@ -153,6 +169,56 @@ def send_notification_to_user(
         title=payload.title,
         body=payload.body,
         data=payload.data,
+    )
+
+    return {
+        "success": True,
+        "notification": notification,
+        "push": push_result,
+    }
+
+
+@router.post("/create", response_model=NotificationSendResponse)
+def create_notification_and_push(
+    payload: NotificationCreateRequest,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if payload.user_id is None and payload.driver_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_id or driver_id is required",
+        )
+
+    notification = repo_create_notification(
+        db=db,
+        user_id=payload.user_id,
+        driver_id=payload.driver_id,
+        title=payload.title,
+        body=payload.body,
+        notification_type=payload.type,
+        data=payload.data,
+    )
+
+    target_user_ids = resolve_target_user_ids(
+        db=db,
+        user_id=payload.user_id,
+        driver_id=payload.driver_id,
+    )
+    tokens = get_active_tokens_for_user_ids(db, target_user_ids)
+    push_data = dict(payload.data or {})
+    push_data.setdefault("type", payload.type)
+    push_data.setdefault("notification_id", str(notification.id))
+    push_data.setdefault("notification_type", payload.type)
+    push_result = send_push_to_tokens(
+        db=db,
+        device_tokens=tokens,
+        title=payload.title,
+        body=payload.body,
+        data=push_data,
+        android_channel_id="high_importance_channel",
+        android_sound="order_sound",
+        ios_sound="default",
     )
 
     return {

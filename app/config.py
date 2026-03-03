@@ -50,6 +50,9 @@ class Settings(BaseSettings):
 
     # Firebase Cloud Messaging
     FCM_ENABLED: bool = True
+    FCM_PROJECT_ID: Optional[str] = None
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
+    SERVICE_ACCOUNT_JSON_PATH: Optional[str] = None
     FCM_SERVICE_ACCOUNT_FILE: Optional[str] = None
     FCM_SERVICE_ACCOUNT_JSON: Optional[str] = None
 
