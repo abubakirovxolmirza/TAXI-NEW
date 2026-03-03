@@ -922,6 +922,7 @@ class PushSendSummary(BaseModel):
     failure_count: int
     invalidated_tokens: int
     skipped: bool = False
+    failure_reasons: List[dict] = Field(default_factory=list)
 
 
 class NotificationSendResponse(BaseModel):

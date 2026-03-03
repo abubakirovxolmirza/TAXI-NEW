@@ -216,6 +216,12 @@ def _is_invalid_token(status_code: int, error_body: Dict[str, Any]) -> bool:
     return "unregistered" in message or "registration token is not a valid fcm registration token" in message
 
 
+def _token_preview(token: str) -> str:
+    if len(token) <= 12:
+        return token
+    return f"{token[:8]}...{token[-4:]}"
+
+
 def send_push_once_to_token(
     token: str,
     title: str,
@@ -319,6 +325,7 @@ def send_push_to_tokens(
         "failure_count": 0,
         "invalidated_tokens": 0,
         "skipped": False,
+        "failure_reasons": [],
     }
 
     if not active_tokens:
@@ -339,6 +346,18 @@ def send_push_to_tokens(
         if response.get("skipped"):
             result["skipped"] = True
             result["failure_count"] += 1
+            result["failure_reasons"].append(
+                {
+                    "device_token_id": token_model.id,
+                    "user_id": token_model.user_id,
+                    "platform": str(token_model.platform.value) if getattr(token_model, "platform", None) else None,
+                    "token_preview": _token_preview(token_model.token),
+                    "status_code": response.get("status_code"),
+                    "reason": response.get("reason"),
+                    "error_code": None,
+                    "message": str((response.get("error_body") or {}).get("reason", "Push sending skipped")),
+                }
+            )
             continue
 
         if response.get("success"):
@@ -349,6 +368,22 @@ def send_push_to_tokens(
         result["failure_count"] += 1
         status_code = response.get("status_code")
         error_body = response.get("error_body") or {}
+        error_code = _extract_fcm_error_code(error_body) if isinstance(error_body, dict) else None
+        error_message = None
+        if isinstance(error_body, dict):
+            error_message = str(error_body.get("error", {}).get("message", "")) or str(error_body)
+        result["failure_reasons"].append(
+            {
+                "device_token_id": token_model.id,
+                "user_id": token_model.user_id,
+                "platform": str(token_model.platform.value) if getattr(token_model, "platform", None) else None,
+                "token_preview": _token_preview(token_model.token),
+                "status_code": status_code,
+                "reason": response.get("reason"),
+                "error_code": error_code,
+                "message": error_message,
+            }
+        )
         if isinstance(status_code, int) and isinstance(error_body, dict) and _is_invalid_token(status_code, error_body):
             invalid_tokens.append(token_model)
 
