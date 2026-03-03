@@ -17,8 +17,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("driver_photocontrols", sa.Column("rejection_reason", sa.Text(), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("driver_photocontrols")}
+    if "rejection_reason" not in columns:
+        op.add_column("driver_photocontrols", sa.Column("rejection_reason", sa.Text(), nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column("driver_photocontrols", "rejection_reason")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("driver_photocontrols")}
+    if "rejection_reason" in columns:
+        op.drop_column("driver_photocontrols", "rejection_reason")
