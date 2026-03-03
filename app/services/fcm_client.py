@@ -31,6 +31,14 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _ensure_aware_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def _stringify_data(data: Optional[Dict[str, Any]]) -> Dict[str, str]:
     payload: Dict[str, str] = {}
     if not data:
@@ -116,10 +124,11 @@ def _get_access_token() -> Tuple[Optional[str], Optional[str]]:
 
     with _token_lock:
         now = _utc_now()
+        expiry_aware = _ensure_aware_utc(_cached_access_token_expiry)
         if (
             _cached_access_token
-            and _cached_access_token_expiry
-            and _cached_access_token_expiry > now + timedelta(seconds=TOKEN_REFRESH_LEEWAY_SECONDS)
+            and expiry_aware
+            and expiry_aware > now + timedelta(seconds=TOKEN_REFRESH_LEEWAY_SECONDS)
         ):
             return _cached_access_token, project_id
 
@@ -130,7 +139,7 @@ def _get_access_token() -> Tuple[Optional[str], Optional[str]]:
             return None, None
 
         _cached_access_token = creds.token
-        expiry = creds.expiry if creds.expiry else now + timedelta(minutes=50)
+        expiry = _ensure_aware_utc(creds.expiry) if creds.expiry else now + timedelta(minutes=50)
         _cached_access_token_expiry = expiry
         return _cached_access_token, project_id
 
