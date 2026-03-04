@@ -4,7 +4,7 @@ from app.database import engine, Base
 from app.routers import (
     auth, taxi_orders, delivery_orders, driver,
     admin, ratings, regions, notifications, feedback, websocket,
-    admin_orders, regions_admin, bonus, order_history, pending_time, public_orders, permissions, system_settings, users, driver_photocontrols, devices
+    admin_orders, regions_admin, bonus, order_history, pending_time, public_orders, permissions, system_settings, users, driver_photocontrols, devices, tariffs
 )
 from app.api.routes import topups, click_callbacks, click_admin
 from app.config import settings
@@ -74,6 +74,7 @@ app.include_router(pending_time.router)  # Pending time management
 app.include_router(public_orders.router)  # Public orders
 app.include_router(permissions.router)  # Permissions management
 app.include_router(system_settings.router)  # System settings (seat visibility timeout, etc.)
+app.include_router(tariffs.router)  # Tariff active/inactive management
 app.include_router(driver_photocontrols.router)  # Driver photo control
 app.include_router(topups.router)  # Click topups
 app.include_router(click_callbacks.router)  # Click callbacks
