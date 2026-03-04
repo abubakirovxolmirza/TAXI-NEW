@@ -61,6 +61,22 @@ def get_tariff_statuses(
     return result
 
 
+@router.get("/{tariff}", response_model=TariffStatusItem)
+def get_single_tariff_status(
+    tariff: Tariff,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    del current_user
+    key = _setting_key(tariff)
+    row = db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
+    return TariffStatusItem(
+        tariff=tariff,
+        is_active=_parse_bool(row.setting_value if row else None, default=True),
+        updated_at=row.updated_at if row else None,
+    )
+
+
 @router.patch("/{tariff}/status", response_model=TariffStatusItem)
 @router.put("/{tariff}/status", response_model=TariffStatusItem, include_in_schema=False)
 def update_tariff_status(
@@ -92,4 +108,3 @@ def update_tariff_status(
         is_active=_parse_bool(row.setting_value, default=True),
         updated_at=row.updated_at,
     )
-
