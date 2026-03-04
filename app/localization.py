@@ -11,6 +11,10 @@ NOTIFICATIONS = {
         "title": "Yetkazib berish buyurtmasi yaratildi", 
         "message": "#{order_id} raqamli yetkazib berish buyurtmangiz yaratildi va haydovchilarni kutmoqda."
     },
+    "delivery_order_created_recipient": {
+        "title": "Sizga yetkazma yuborildi",
+        "message": "#{order_id} raqamli yetkazib berish buyurtmasida siz qabul qiluvchi sifatida ko'rsatildingiz."
+    },
     "order_accepted": {
         "title": "Buyurtma qabul qilindi",
         "message": "#{order_id} raqamli {order_type} buyurtmangiz haydovchi tomonidan qabul qilindi."

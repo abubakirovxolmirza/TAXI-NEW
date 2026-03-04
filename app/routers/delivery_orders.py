@@ -92,6 +92,31 @@ def _is_order_receiver(order: DeliveryOrder, user_phone: Optional[str]) -> bool:
     })
 
 
+def _find_receiver_user_by_phone(db: Session, receiver_phone: Optional[str]) -> Optional[User]:
+    phone_variants = _phone_variants(receiver_phone)
+    if not phone_variants:
+        return None
+
+    digit_variants = {
+        "".join(ch for ch in value if ch.isdigit())
+        for value in phone_variants
+        if any(ch.isdigit() for ch in value)
+    }
+    digit_variants = {value for value in digit_variants if value}
+
+    query = db.query(User).filter(User.telephone.in_(phone_variants))
+    if digit_variants:
+        user_digits = func.regexp_replace(User.telephone, r"\D", "", "g")
+        query = db.query(User).filter(
+            or_(
+                User.telephone.in_(phone_variants),
+                user_digits.in_(digit_variants),
+            )
+        )
+
+    return query.order_by(User.id.asc()).first()
+
+
 router = APIRouter(prefix="/api/delivery-orders", tags=["Delivery Orders"])
 
 
@@ -176,7 +201,7 @@ async def create_delivery_order(
         db.commit()
         db.refresh(new_order)
     
-    # Notify order owner only
+    # Notify order owner
     notification = get_notification_message("delivery_order_created", order_id=new_order.id)
     create_notification(
         db=db,
@@ -185,6 +210,21 @@ async def create_delivery_order(
         notification_type="order_created",
         user_id=current_user.id,
     )
+
+    # Notify recipient as well if recipient phone belongs to an existing user.
+    recipient_user = _find_receiver_user_by_phone(db, new_order.receiver_telephone)
+    if recipient_user and recipient_user.id != current_user.id:
+        recipient_notification = get_notification_message(
+            "delivery_order_created_recipient",
+            order_id=new_order.id,
+        )
+        create_notification(
+            db=db,
+            title=recipient_notification["title"],
+            message=recipient_notification["message"],
+            notification_type="order_created",
+            user_id=recipient_user.id,
+        )
     
     # Broadcast to all drivers via WebSocket
     import asyncio
