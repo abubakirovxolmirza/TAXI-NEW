@@ -113,7 +113,7 @@ def check_my_photo_control(
 
     return {
         "required": required,
-        "can_submit_now": required and _within_working_hours(),
+        "can_submit_now": required,
         "window_start_hour": WINDOW_START_HOUR,
         "window_end_hour": WINDOW_END_HOUR,
         "interval_days": interval_days,
@@ -188,12 +188,6 @@ def submit_my_photo_control(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Photo control is not due yet. Next due: {next_due_at.isoformat() if next_due_at else 'n/a'}",
         )
-    if not _within_working_hours():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Photo control can be submitted only between {WINDOW_START_HOUR:02d}:00 and {WINDOW_END_HOUR:02d}:00",
-        )
-
     control = DriverPhotoControl(
         driver_id=driver.id,
         front_image=payload.front_image,
