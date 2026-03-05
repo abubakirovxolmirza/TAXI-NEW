@@ -241,6 +241,22 @@ def get_all_drivers(
     return drivers
 
 
+@router.get("/drivers/{driver_id}", response_model=DriverResponse)
+def get_driver_by_id(
+    driver_id: int,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Get a driver by ID (ADMIN or SUPERADMIN only)."""
+    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver not found"
+        )
+    return driver
+
+
 @router.put("/drivers/{driver_id}/vip", response_model=DriverResponse)
 def update_driver_vip(
     driver_id: int,
