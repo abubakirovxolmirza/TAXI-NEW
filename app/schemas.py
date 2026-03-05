@@ -1053,7 +1053,7 @@ class OrderAcceptanceHistoryResponse(BaseModel):
 
 # Pending Time Update Schema
 class PendingTimeUpdate(BaseModel):
-    pending_time: int = Field(..., ge=0, description="Pending time in seconds")
+    pending_time: int = Field(..., ge=1, description="Pending time in minutes")
 
 
 # Public Order Response (extended from regular order response)

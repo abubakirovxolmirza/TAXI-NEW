@@ -292,7 +292,7 @@ class TaxiOrder(Base):
     status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
     public_order = Column(Boolean, default=False, nullable=False)  # If true, order is visible to all drivers
     is_new = Column(Boolean, default=True, nullable=False)
-    pending_time = Column(Integer, nullable=True)  # Time in seconds before order becomes public
+    pending_time = Column(Integer, nullable=True)  # Time in minutes before order becomes public
     cancellation_reason = Column(Text, nullable=True)
     cancelled_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     cancelled_by_role = Column(String(20), nullable=True)
@@ -350,7 +350,7 @@ class DeliveryOrder(Base):
     status = Column(SQLEnum(OrderStatus, values_callable=lambda obj: [e.value for e in obj]), default=OrderStatus.PENDING, nullable=False)
     public_order = Column(Boolean, default=False, nullable=False)  # If true, order is visible to all drivers
     is_new = Column(Boolean, default=True, nullable=False)
-    pending_time = Column(Integer, nullable=True)  # Time in seconds before order becomes public
+    pending_time = Column(Integer, nullable=True)  # Time in minutes before order becomes public
     cancellation_reason = Column(Text, nullable=True)
     cancelled_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     cancelled_by_role = Column(String(20), nullable=True)

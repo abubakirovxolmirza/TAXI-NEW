@@ -346,7 +346,7 @@ async def check_pending_orders_for_public():
             
             # Get current time
             current_time = datetime.now(timezone.utc)
-            # Mark orders as not new when their own pending_time expires.
+            # Mark orders as not new when their own pending_time (minutes) expires.
             taxi_new_orders = db.query(TaxiOrder).filter(
                 TaxiOrder.is_new == True,
                 TaxiOrder.pending_time.isnot(None),
@@ -358,11 +358,11 @@ async def check_pending_orders_for_public():
 
             new_flags_changed = False
             for order in taxi_new_orders:
-                if (current_time - order.created_at).total_seconds() >= order.pending_time:
+                if (current_time - order.created_at).total_seconds() >= (order.pending_time * 60):
                     order.is_new = False
                     new_flags_changed = True
             for order in delivery_new_orders:
-                if (current_time - order.created_at).total_seconds() >= order.pending_time:
+                if (current_time - order.created_at).total_seconds() >= (order.pending_time * 60):
                     order.is_new = False
                     new_flags_changed = True
 
@@ -387,10 +387,10 @@ async def check_pending_orders_for_public():
             
             # Process taxi orders
             for order in taxi_orders_to_make_public:
-                # Check if pending_time has expired
+                # Check if pending_time (minutes) has expired
                 time_elapsed = (current_time - order.created_at).total_seconds()
                 
-                if time_elapsed >= order.pending_time:
+                if time_elapsed >= (order.pending_time * 60):
                     # Make order public
                     order.public_order = True
                     db.commit()
@@ -419,14 +419,14 @@ async def check_pending_orders_for_public():
                         order_type="taxi",
                     )
                     
-                    print(f"[TASK] Taxi order #{order.id} is now public after {order.pending_time} seconds")
+                    print(f"[TASK] Taxi order #{order.id} is now public after {order.pending_time} minutes")
             
             # Process delivery orders
             for order in delivery_orders_to_make_public:
-                # Check if pending_time has expired
+                # Check if pending_time (minutes) has expired
                 time_elapsed = (current_time - order.created_at).total_seconds()
                 
-                if time_elapsed >= order.pending_time:
+                if time_elapsed >= (order.pending_time * 60):
                     # Make order public
                     order.public_order = True
                     db.commit()
@@ -455,7 +455,7 @@ async def check_pending_orders_for_public():
                         order_type="delivery",
                     )
                     
-                    print(f"[TASK] Delivery order #{order.id} is now public after {order.pending_time} seconds")
+                    print(f"[TASK] Delivery order #{order.id} is now public after {order.pending_time} minutes")
             
             db.close()
             

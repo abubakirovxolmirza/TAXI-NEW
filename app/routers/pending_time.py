@@ -23,7 +23,7 @@ async def get_pending_time_setting(
         return {
             "setting_key": "public_order_pending_time",
             "setting_value": "15",
-            "description": "Time in seconds before order becomes public (default)"
+            "description": "Time in minutes before order becomes public (default)"
         }
     
     return {
@@ -56,7 +56,7 @@ async def update_pending_time_setting(
         setting = SystemSettings(
             setting_key="public_order_pending_time",
             setting_value=str(pending_time_data.pending_time),
-            description="Time in seconds before order becomes public",
+            description="Time in minutes before order becomes public",
             updated_by=current_user.id
         )
         db.add(setting)

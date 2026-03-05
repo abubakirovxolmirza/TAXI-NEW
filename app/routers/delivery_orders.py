@@ -146,7 +146,7 @@ async def create_delivery_order(
     # Calculate service fee and driver earnings
     service_fee, driver_earnings = calculate_service_fee(price, db)
     
-    # Get default pending time from system settings (15 seconds by default)
+    # Get default pending time from system settings (15 minutes by default)
     from app.models import SystemSettings
     pending_time_setting = db.query(SystemSettings).filter(
         SystemSettings.setting_key == "public_order_pending_time"
