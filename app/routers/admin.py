@@ -29,7 +29,7 @@ from app.schemas import (
     FeedbackResponse, UserResponse, UserRoleUpdate,
     BonusBallUpdate, BonusBallUserResponse,
     ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse,
-    DriverVipUpdate, DriverBrendUpdate, DriverTariffUpdate,
+    DriverVipUpdate, DriverBrendUpdate, DriverTariffUpdate, DriverControlUpdate,
 )
 from app.auth import get_current_admin, get_current_superadmin
 from app.utils import (
@@ -309,6 +309,28 @@ def update_driver_tariff(
         )
 
     driver.tariff = update_data.tariff
+    db.commit()
+    db.refresh(driver)
+    return driver
+
+
+@router.put("/drivers/{driver_id}/control", response_model=DriverResponse)
+def update_driver_control(
+    driver_id: int,
+    update_data: DriverControlUpdate,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Update driver's photo-control flag (ADMIN or SUPERADMIN only)."""
+    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver not found"
+        )
+
+    driver.control = update_data.control
     db.commit()
     db.refresh(driver)
     return driver

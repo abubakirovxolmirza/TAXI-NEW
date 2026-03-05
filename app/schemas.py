@@ -557,6 +557,10 @@ class DriverTariffUpdate(BaseModel):
     tariff: Tariff
 
 
+class DriverControlUpdate(BaseModel):
+    control: bool
+
+
 class DriverStatistics(BaseModel):
     daily_orders: int
     daily_revenue: Decimal
