@@ -346,26 +346,27 @@ async def check_pending_orders_for_public():
             
             # Get current time
             current_time = datetime.now(timezone.utc)
-            new_order_threshold = current_time - timedelta(minutes=1)
+            # Mark orders as not new when their own pending_time expires.
+            taxi_new_orders = db.query(TaxiOrder).filter(
+                TaxiOrder.is_new == True,
+                TaxiOrder.pending_time.isnot(None),
+            ).all()
+            delivery_new_orders = db.query(DeliveryOrder).filter(
+                DeliveryOrder.is_new == True,
+                DeliveryOrder.pending_time.isnot(None),
+            ).all()
 
-            # Taxi orders are marked as new for 1 minute after creation.
-            updated_new_flags = (
-                db.query(TaxiOrder)
-                .filter(
-                    TaxiOrder.is_new == True,
-                    TaxiOrder.created_at <= new_order_threshold,
-                )
-                .update({TaxiOrder.is_new: False}, synchronize_session=False)
-            )
-            updated_delivery_new_flags = (
-                db.query(DeliveryOrder)
-                .filter(
-                    DeliveryOrder.is_new == True,
-                    DeliveryOrder.created_at <= new_order_threshold,
-                )
-                .update({DeliveryOrder.is_new: False}, synchronize_session=False)
-            )
-            if updated_new_flags or updated_delivery_new_flags:
+            new_flags_changed = False
+            for order in taxi_new_orders:
+                if (current_time - order.created_at).total_seconds() >= order.pending_time:
+                    order.is_new = False
+                    new_flags_changed = True
+            for order in delivery_new_orders:
+                if (current_time - order.created_at).total_seconds() >= order.pending_time:
+                    order.is_new = False
+                    new_flags_changed = True
+
+            if new_flags_changed:
                 db.commit()
             
             # Find taxi orders that are pending, not public, and have expired pending_time
