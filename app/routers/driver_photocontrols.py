@@ -73,25 +73,28 @@ def _calculate_due(
     latest: Optional[DriverPhotoControl],
     interval_days: int,
 ) -> tuple[bool, str, Optional[datetime]]:
-    if not driver.control:
-        return False, "disabled", None
-
     if latest is None:
+        if driver.control:
+            return False, "active", None
         return True, "first_time", None
 
     if latest.status == DriverPhotoControlStatus.PENDING:
         return False, "pending_approval", None
+
+    if not driver.control:
+        if latest.status == DriverPhotoControlStatus.REJECTED:
+            return True, "rejected", None
+        return True, "required", None
 
     if latest.status == DriverPhotoControlStatus.REJECTED:
         return True, "rejected", None
 
     base_time = latest.approved_at or latest.created_at
     if base_time is None:
-        return True, "first_time", None
+        return False, "active", None
 
     next_due_at = base_time + timedelta(days=interval_days)
-    due = datetime.now(timezone.utc) >= next_due_at
-    return due, "due" if due else "not_due", next_due_at
+    return False, "active", next_due_at
 
 
 @router.get("/me/check", response_model=DriverPhotoControlCheckResponse)
@@ -243,10 +246,14 @@ def review_photo_control(
         control.status = DriverPhotoControlStatus.APPROVED
         control.approved_at = datetime.now(timezone.utc)
         control.rejection_reason = None
+        if control.driver:
+            control.driver.control = True
     else:
         control.status = DriverPhotoControlStatus.REJECTED
         control.approved_at = None
         control.rejection_reason = (payload.rejection_reason or "").strip()
+        if control.driver:
+            control.driver.control = False
 
     db.commit()
     db.refresh(control)

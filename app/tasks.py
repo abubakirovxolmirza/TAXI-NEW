@@ -15,6 +15,7 @@ from app.models import (
     Driver,
     DeviceToken,
     DriverPhotoControl,
+    DriverPhotoControlStatus,
     SystemSettings,
 )
 from app.utils import create_notification, get_seat_visibility_timeout_minutes, get_uzbek_time
@@ -511,6 +512,73 @@ def _photo_control_interval_days(db: Session) -> int:
     return value if value > 0 else DEFAULT_PHOTO_CONTROL_INTERVAL_DAYS
 
 
+def _is_photo_control_window(now_uz: datetime) -> bool:
+    return 8 <= now_uz.hour < 16
+
+
+async def check_expired_driver_photo_controls():
+    """
+    Background task to disable driver control after interval days from approval.
+    Disabling is allowed only in Uzbekistan time window 08:00-16:00.
+    """
+    while True:
+        db = None
+        try:
+            db = SessionLocal()
+            now_utc = datetime.now(timezone.utc)
+            now_uz = get_uzbek_time(now_utc)
+
+            if not _is_photo_control_window(now_uz):
+                await asyncio.sleep(60)
+                continue
+
+            interval_days = _photo_control_interval_days(db)
+            drivers = db.query(Driver).filter(Driver.control == True).all()
+            changed = 0
+
+            for driver in drivers:
+                latest_approved = (
+                    db.query(DriverPhotoControl)
+                    .filter(
+                        DriverPhotoControl.driver_id == driver.id,
+                        DriverPhotoControl.status == DriverPhotoControlStatus.APPROVED,
+                    )
+                    .order_by(
+                        DriverPhotoControl.approved_at.desc(),
+                        DriverPhotoControl.created_at.desc(),
+                    )
+                    .first()
+                )
+                if not latest_approved:
+                    continue
+
+                base_time = latest_approved.approved_at or latest_approved.created_at
+                if base_time is None:
+                    continue
+                if base_time.tzinfo is None:
+                    base_time = base_time.replace(tzinfo=timezone.utc)
+
+                due_at = base_time + timedelta(days=interval_days)
+                if now_utc >= due_at:
+                    driver.control = False
+                    changed += 1
+
+            if changed:
+                db.commit()
+                print(f"[TASK] Disabled control for {changed} driver(s) after photo-control expiry")
+            else:
+                db.rollback()
+        except Exception as e:
+            print(f"[TASK ERROR] check_expired_driver_photo_controls: {str(e)}")
+            if db is not None:
+                db.rollback()
+        finally:
+            if db is not None:
+                db.close()
+
+        await asyncio.sleep(60)
+
+
 def _resolve_upload_file_path(image_path: str) -> Path:
     candidate = Path(str(image_path).strip())
     if candidate.is_absolute():
@@ -568,5 +636,6 @@ def start_background_tasks():
     asyncio.create_task(check_unconfirmed_orders())
     asyncio.create_task(check_pending_orders_for_public())
     asyncio.create_task(check_expired_driver_vip())
+    asyncio.create_task(check_expired_driver_photo_controls())
     asyncio.create_task(cleanup_expired_driver_photocontrol_images())
     print("[TASKS] Background tasks started")
