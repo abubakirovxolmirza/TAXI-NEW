@@ -2016,15 +2016,24 @@ async def complete_order(
     from app.utils import calculate_and_apply_bonus
     bonus_amount = calculate_and_apply_bonus(db, order)
     
-    # Notify user
-    notification = get_notification_message("order_completed", order_id=order.id, order_type=order_type)
-    create_notification(
-        db=db,
-        title=notification["title"],
-        message=notification["message"],
-        notification_type="order_completed",
-        user_id=order.user_id
-    )
+    # Send rating prompt only to regular users.
+    order_user = db.query(User).filter(User.id == order.user_id).first()
+    if order_user and order_user.role == UserRole.USER:
+        notification = get_notification_message("order_rating_requested", order_id=order.id, order_type=order_type)
+        create_notification(
+            db=db,
+            title=notification["title"],
+            message=notification["message"],
+            notification_type="order_rating_requested",
+            user_id=order.user_id,
+            data={
+                "type": "rating_prompt",
+                "order_id": str(order.id),
+                "order_type": order_type,
+                "driver_id": str(driver.id),
+                "action": "open_rating",
+            },
+        )
     
     await _notify_passenger_order_status(
         order=order,

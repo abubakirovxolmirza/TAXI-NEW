@@ -23,6 +23,10 @@ NOTIFICATIONS = {
         "title": "Buyurtma yakunlandi",
         "message": "#{order_id} raqamli {order_type} buyurtmangiz yakunlandi. Iltimos, haydovchiga baho bering."
     },
+    "order_rating_requested": {
+        "title": "Haydovchini baholang",
+        "message": "#{order_id} raqamli {order_type} buyurtma yakunlandi. Iltimos, haydovchiga baho bering."
+    },
     "order_confirmed": {
         "title": "Buyurtma tasdiqlandi",
         "message": "#{order_id} raqamli {order_type} buyurtmangiz haydovchi tomonidan tasdiqlandi."
