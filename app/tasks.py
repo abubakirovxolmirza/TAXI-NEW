@@ -75,7 +75,7 @@ def _send_new_order_push_to_working_drivers(
             "order_type": order_type,
             "deep_link": f"tashkentgo://order/{order_id}",
         },
-        android_channel_id="high_importance_channel",
+        android_channel_id="high_importance_channel_v3",
         android_priority="high",
     )
 
