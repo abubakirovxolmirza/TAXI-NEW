@@ -16,6 +16,7 @@ from app.models import (
     DeliveryOrder,
     OrderStatus,
     Pricing,
+    DistrictPricing,
     BalanceTransaction,
     Notification,
     Feedback,
@@ -25,6 +26,7 @@ from app.models import (
 from app.schemas import (
     DriverApplicationResponse, DriverApplicationReview,
     DriverResponse, PricingCreate, PricingUpdate, PricingResponse,
+    PricingBulkAdjustRequest, PricingBulkAdjustResponse,
     BalanceAdd, BalanceTransactionResponse, BroadcastMessage,
     FeedbackResponse, UserResponse, UserRoleUpdate,
     BonusBallUpdate, BonusBallUserResponse,
@@ -695,6 +697,107 @@ def delete_all_pricing(
     return {
         "success": True,
         "message": f"All pricing deleted successfully. Total deleted: {deleted_count}"
+    }
+
+
+def _adjust_price_value(value: Optional[Decimal], amount: Decimal, operation: str) -> Optional[Decimal]:
+    if value is None:
+        return None
+    if operation == "add":
+        return value + amount
+    updated_value = value - amount
+    if updated_value < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Price adjustment would produce negative values",
+        )
+    return updated_value
+
+
+def _apply_bulk_price_adjustment(
+    db: Session,
+    *,
+    service_type: str,
+    operation: str,
+    amount: Decimal,
+) -> tuple[int, int]:
+    region_pricing = db.query(Pricing).filter(
+        Pricing.service_type == service_type,
+        Pricing.is_active == True,
+    ).all()
+    district_pricing = db.query(DistrictPricing).filter(
+        DistrictPricing.service_type == service_type,
+        DistrictPricing.is_active == True,
+    ).all()
+
+    for row in region_pricing:
+        row.base_price = _adjust_price_value(row.base_price, amount, operation)
+        row.front_seat_price = _adjust_price_value(row.front_seat_price, amount, operation)
+        row.back_seat_price = _adjust_price_value(row.back_seat_price, amount, operation)
+
+    for row in district_pricing:
+        row.base_price = _adjust_price_value(row.base_price, amount, operation)
+        row.front_seat_price = _adjust_price_value(row.front_seat_price, amount, operation)
+        row.back_seat_price = _adjust_price_value(row.back_seat_price, amount, operation)
+
+    return len(region_pricing), len(district_pricing)
+
+
+@router.post("/pricing/taxi/adjust", response_model=PricingBulkAdjustResponse)
+def bulk_adjust_taxi_pricing(
+    payload: PricingBulkAdjustRequest,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Bulk add/subtract amount from all active taxi pricing (region + district)."""
+    try:
+        region_count, district_count = _apply_bulk_price_adjustment(
+            db,
+            service_type="taxi",
+            operation=payload.operation,
+            amount=payload.amount,
+        )
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+
+    return {
+        "success": True,
+        "service_type": "taxi",
+        "operation": payload.operation,
+        "amount": payload.amount,
+        "updated_region_pricing_count": region_count,
+        "updated_district_pricing_count": district_count,
+    }
+
+
+@router.post("/pricing/delivery/adjust", response_model=PricingBulkAdjustResponse)
+def bulk_adjust_delivery_pricing(
+    payload: PricingBulkAdjustRequest,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Bulk add/subtract amount from all active delivery pricing (region + district)."""
+    try:
+        region_count, district_count = _apply_bulk_price_adjustment(
+            db,
+            service_type="delivery",
+            operation=payload.operation,
+            amount=payload.amount,
+        )
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+
+    return {
+        "success": True,
+        "service_type": "delivery",
+        "operation": payload.operation,
+        "amount": payload.amount,
+        "updated_region_pricing_count": region_count,
+        "updated_district_pricing_count": district_count,
     }
 
 

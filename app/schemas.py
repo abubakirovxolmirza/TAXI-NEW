@@ -704,6 +704,20 @@ class PricingResponse(BaseModel):
         from_attributes = True
 
 
+class PricingBulkAdjustRequest(BaseModel):
+    operation: Literal["add", "subtract"]
+    amount: Decimal = Field(..., gt=0)
+
+
+class PricingBulkAdjustResponse(BaseModel):
+    success: bool
+    service_type: str
+    operation: str
+    amount: Decimal
+    updated_region_pricing_count: int
+    updated_district_pricing_count: int
+
+
 # Balance Transaction Schemas
 class BalanceAdd(BaseModel):
     driver_id: int
