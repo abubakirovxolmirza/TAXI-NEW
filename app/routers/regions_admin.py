@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from typing import List
 from app.database import get_db
 from app.models import Region, District, DistrictPricing, Tariff, User
@@ -236,6 +236,8 @@ def update_district_pricing(
 def get_all_district_pricing(
     service_type: str = Query("taxi", pattern="^(taxi|delivery)$"),
     tariff: Tariff | None = None,
+    from_region_id: int | None = None,
+    to_region_id: int | None = None,
     from_district_id: int | None = None,
     to_district_id: int | None = None,
     limit: int = Query(100, ge=1, le=1000),
@@ -244,6 +246,9 @@ def get_all_district_pricing(
     db: Session = Depends(get_db)
 ):
     """Get district-level pricing configurations with pagination (Admin only)."""
+    from_district = aliased(District)
+    to_district = aliased(District)
+
     query = db.query(DistrictPricing).filter(
         DistrictPricing.is_active == True,
         DistrictPricing.service_type == service_type,
@@ -251,6 +256,16 @@ def get_all_district_pricing(
 
     if tariff is not None:
         query = query.filter(DistrictPricing.tariff == tariff)
+    if from_region_id is not None:
+        query = query.join(
+            from_district,
+            from_district.id == DistrictPricing.from_district_id,
+        ).filter(from_district.region_id == from_region_id)
+    if to_region_id is not None:
+        query = query.join(
+            to_district,
+            to_district.id == DistrictPricing.to_district_id,
+        ).filter(to_district.region_id == to_region_id)
     if from_district_id is not None:
         query = query.filter(DistrictPricing.from_district_id == from_district_id)
     if to_district_id is not None:
