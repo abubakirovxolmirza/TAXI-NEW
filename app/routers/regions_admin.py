@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
@@ -234,11 +234,34 @@ def update_district_pricing(
 
 @router.get("/district-pricing", response_model=List[DistrictPricingResponse])
 def get_all_district_pricing(
+    service_type: str = Query("taxi", pattern="^(taxi|delivery)$"),
+    tariff: Tariff | None = None,
+    from_district_id: int | None = None,
+    to_district_id: int | None = None,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Get all district-level pricing configurations (Admin only)"""
-    pricing = db.query(DistrictPricing).filter(DistrictPricing.is_active == True).all()
+    """Get district-level pricing configurations with pagination (Admin only)."""
+    query = db.query(DistrictPricing).filter(
+        DistrictPricing.is_active == True,
+        DistrictPricing.service_type == service_type,
+    )
+
+    if tariff is not None:
+        query = query.filter(DistrictPricing.tariff == tariff)
+    if from_district_id is not None:
+        query = query.filter(DistrictPricing.from_district_id == from_district_id)
+    if to_district_id is not None:
+        query = query.filter(DistrictPricing.to_district_id == to_district_id)
+
+    pricing = (
+        query.order_by(DistrictPricing.id.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     return pricing
 
 
