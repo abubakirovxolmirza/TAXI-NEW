@@ -861,6 +861,17 @@ def _build_order_telegram_message(
                 seat_label = "Old o'rindiq (front)"
             elif order.seat_type == SeatType.BACK:
                 seat_label = "Orqa o'rindiq (back)"
+
+        # Format passenger gender preference
+        gender_label = "-"
+        if hasattr(order, "client_gender") and order.client_gender:
+            gender_value = getattr(order.client_gender, "value", str(order.client_gender)).lower()
+            gender_map = {
+                "male": "erkak",
+                "female": "ayol",
+                "both": "erkak va ayol",
+            }
+            gender_label = gender_map.get(gender_value, str(order.client_gender))
         
         lines.extend(
             [
@@ -871,6 +882,8 @@ def _build_order_telegram_message(
                 "",
                 "📍 *Yo'nalish:*",
                 f"{from_region}, {from_district} ➡️ {to_region}, {to_district}",
+                "",
+                f"🚻 *Yo'lovchi jinsi:* {gender_label}",
                 "",
                 f"🏷️ *Tarif:* {tariff_label}",
                 "",
