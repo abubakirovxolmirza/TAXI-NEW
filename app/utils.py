@@ -824,7 +824,8 @@ def _escape_telegram_html(value: object) -> str:
 
 def _strip_telegram_html(text: str) -> str:
     # Keep text readable if Telegram rejects HTML parsing.
-    return re.sub(r"<[^>]+>", "", text)
+    stripped = re.sub(r"<[^>]+>", "", text)
+    return html.unescape(stripped)
 
 
 def _telegram_api_request(method: str, payload: dict, context_label: str = "") -> Optional[dict]:
@@ -1087,6 +1088,10 @@ def _edit_telegram_message(
     )
     response = _telegram_api_request("editMessageText", payload, context_label=context_label)
     if response and response.get("error_code") == 400:
+        description = str(response.get("description") or "").lower()
+        # "message is not modified" is harmless; keep existing formatted message.
+        if "message is not modified" in description:
+            return True
         fallback_payload = dict(payload)
         fallback_payload.pop("parse_mode", None)
         fallback_payload["text"] = _strip_telegram_html(text)
@@ -1145,19 +1150,11 @@ async def update_order_telegram_message(
         )
         return None
     try:
-        message = _build_order_telegram_message(db, order, order_type, status_label, driver)
         message_id = getattr(order, "telegram_message_id", None)
         if message_id:
-            await asyncio.to_thread(
-                _edit_telegram_message,
-                message_id,
-                message,
-                getattr(order, "id", None),
-                order_type,
-            )
-            # Always return the existing message_id, whether edit succeeded or not
-            # This prevents sending duplicate messages
+            # Edit is intentionally disabled: keep the original channel message unchanged.
             return message_id
+        message = _build_order_telegram_message(db, order, order_type, status_label, driver)
         # Only send a new message if there's no existing telegram_message_id
         return await asyncio.to_thread(
             _send_telegram_message,
