@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_
@@ -16,6 +17,7 @@ from app.utils import (
     get_last_history_driver_id,
     get_or_create_guest_user,
     record_order_acceptance_history,
+    send_new_order_push_to_working_drivers,
     send_order_telegram_message,
 )
 from app.localization import get_notification_message
@@ -34,6 +36,26 @@ def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[
 def _delivery_order_query(db: Session):
     return db.query(DeliveryOrder).options(
         joinedload(DeliveryOrder.driver).joinedload(Driver.user)
+    )
+
+
+async def _notify_new_delivery_order_to_brend_drivers(db: Session, order_payload: dict) -> None:
+    brend_driver_ids = [
+        driver_id
+        for (driver_id,) in db.query(Driver.id).filter(
+            Driver.brend == True,
+            Driver.is_worked == True,
+            Driver.is_blocked == False,
+        ).all()
+    ]
+    if not brend_driver_ids:
+        return
+    await asyncio.gather(
+        *[
+            manager.send_to_driver(driver_id, {"type": "new_order", "order": order_payload})
+            for driver_id in brend_driver_ids
+        ],
+        return_exceptions=True,
     )
 
 
@@ -226,8 +248,7 @@ async def create_delivery_order(
             user_id=recipient_user.id,
         )
     
-    # Broadcast to all drivers via WebSocket
-    import asyncio
+    # Send to brend drivers first (order is still non-public/new).
     order_data_dict = {
         "id": new_order.id,
         "type": "delivery",
@@ -246,16 +267,13 @@ async def create_delivery_order(
         "public_order": new_order.public_order,
         "is_new": new_order.is_new,
     }
-    if new_order.public_order:
-        asyncio.create_task(manager.broadcast_to_all_drivers({
-            "type": "new_order",
-            "order": order_data_dict
-        }))
-    elif new_order.driver_id:
-        asyncio.create_task(manager.send_to_driver(new_order.driver_id, {
-            "type": "new_order",
-            "order": order_data_dict
-        }))
+    await _notify_new_delivery_order_to_brend_drivers(db, order_data_dict)
+    send_new_order_push_to_working_drivers(
+        db=db,
+        order_id=new_order.id,
+        order_type="delivery",
+        brend_only=True,
+    )
     
     return new_order
 

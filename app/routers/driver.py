@@ -362,14 +362,16 @@ def _is_order_visible_to_driver(
     - Drivers with an accepted order can see non-public, unassigned orders for batching.
     - Orders assigned to another driver are never visible.
     """
-    if isinstance(order, TaxiOrder) and not _can_driver_take_taxi_order(driver_tariff, order.tariff):
-        return False
-    if getattr(order, "is_new", False) and not driver_brend:
-        return False
-
     assigned_driver_id = getattr(order, "driver_id", None)
     if assigned_driver_id and assigned_driver_id != driver_id:
         return False
+    if isinstance(order, TaxiOrder) and not _can_driver_take_taxi_order(driver_tariff, order.tariff):
+        return False
+    if getattr(order, "is_new", False):
+        if not driver_brend:
+            return False
+        if assigned_driver_id is None:
+            return True
     if getattr(order, "public_order", False):
         return True
     if assigned_driver_id == driver_id:
@@ -633,9 +635,18 @@ async def _collect_available_orders_for_driver(
                 )
 
             if not driver_has_accepted_order:
-                taxi_query = taxi_query.filter(
-                    or_(TaxiOrder.public_order.is_(True), TaxiOrder.driver_id == driver.id),
-                )
+                if driver.brend:
+                    taxi_query = taxi_query.filter(
+                        or_(
+                            TaxiOrder.public_order.is_(True),
+                            TaxiOrder.driver_id == driver.id,
+                            TaxiOrder.is_new.is_(True),
+                        ),
+                    )
+                else:
+                    taxi_query = taxi_query.filter(
+                        or_(TaxiOrder.public_order.is_(True), TaxiOrder.driver_id == driver.id),
+                    )
             if not driver.brend:
                 taxi_query = taxi_query.filter(TaxiOrder.is_new.is_(False))
 
@@ -675,9 +686,18 @@ async def _collect_available_orders_for_driver(
             )
 
         if not driver_has_accepted_order:
-            delivery_query = delivery_query.filter(
-                or_(DeliveryOrder.public_order.is_(True), DeliveryOrder.driver_id == driver.id),
-            )
+            if driver.brend:
+                delivery_query = delivery_query.filter(
+                    or_(
+                        DeliveryOrder.public_order.is_(True),
+                        DeliveryOrder.driver_id == driver.id,
+                        DeliveryOrder.is_new.is_(True),
+                    ),
+                )
+            else:
+                delivery_query = delivery_query.filter(
+                    or_(DeliveryOrder.public_order.is_(True), DeliveryOrder.driver_id == driver.id),
+                )
         if not driver.brend:
             delivery_query = delivery_query.filter(DeliveryOrder.is_new.is_(False))
 

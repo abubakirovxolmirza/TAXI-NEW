@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 import re
 import urllib.parse
@@ -10,6 +11,7 @@ from typing import Optional, Tuple, Union, TYPE_CHECKING
 import uuid
 
 import redis
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
@@ -389,6 +391,64 @@ def notify_all_drivers(db: Session, title: str, message: str):
         )
 
 
+def send_new_order_push_to_working_drivers(
+    db: Session,
+    *,
+    order_id: int,
+    order_type: str,
+    brend_only: Optional[bool] = None,
+):
+    """
+    Send new-order push to working drivers.
+    brend_only=True  -> only brend drivers
+    brend_only=False -> only non-brend drivers
+    brend_only=None  -> all working drivers
+    """
+    latest_token_subquery = (
+        db.query(
+            DeviceToken.user_id.label("user_id"),
+            func.max(DeviceToken.id).label("latest_id"),
+        )
+        .filter(DeviceToken.is_active == True)
+        .group_by(DeviceToken.user_id)
+        .subquery()
+    )
+
+    query = (
+        db.query(DeviceToken)
+        .join(latest_token_subquery, DeviceToken.id == latest_token_subquery.c.latest_id)
+        .join(Driver, Driver.user_id == DeviceToken.user_id)
+        .filter(
+            Driver.is_worked == True,
+            Driver.is_blocked == False,
+        )
+    )
+
+    if brend_only is True:
+        query = query.filter(Driver.brend == True)
+    elif brend_only is False:
+        query = query.filter(Driver.brend == False)
+
+    target_tokens = query.all()
+    if not target_tokens:
+        return
+
+    send_push_to_tokens(
+        db=db,
+        device_tokens=target_tokens,
+        title="Yangi buyurtma",
+        body="Sizga yangi buyurtma keldi",
+        data={
+            "type": "new_order",
+            "order_id": str(order_id),
+            "order_type": order_type,
+            "deep_link": f"tashkentgo://order/{order_id}",
+        },
+        android_channel_id="high_importance_channel_v3",
+        android_priority="high",
+    )
+
+
 def check_driver_can_accept_order(db: Session, driver_id: int) -> bool:
     """Check if driver can accept orders (not blocked)"""
     driver = db.query(Driver).filter(Driver.id == driver_id).first()
@@ -758,9 +818,13 @@ def _truncate_telegram_text(text: str, max_len: int = 4000) -> str:
     return f"{text[:max_len - 3]}..."
 
 
-def _strip_telegram_markdown(text: str) -> str:
-    # Keep text readable if Telegram rejects markdown parsing.
-    return re.sub(r"[*_`\\[\\]()]", "", text)
+def _escape_telegram_html(value: object) -> str:
+    return html.escape(str(value or ""))
+
+
+def _strip_telegram_html(text: str) -> str:
+    # Keep text readable if Telegram rejects HTML parsing.
+    return re.sub(r"<[^>]+>", "", text)
 
 
 def _telegram_api_request(method: str, payload: dict, context_label: str = "") -> Optional[dict]:
@@ -815,6 +879,9 @@ def _build_order_telegram_message(
     status_label: str,
     driver: Optional[Driver] = None,
 ) -> str:
+    def _e(value: object) -> str:
+        return _escape_telegram_html(value)
+
     def _format_price(value) -> str:
         try:
             amount = int(value)
@@ -901,46 +968,48 @@ def _build_order_telegram_message(
         
         lines.extend(
             [
-                "🚖 *YANGI TAKSI BUYURTMA*",
+                "🚖 <b>YANGI TAKSI BUYURTMA</b>",
                 "",
-                f"👤 *Mijoz:* {order.username}",
+                f"👤 <b>Mijoz:</b> {_e(order.username)}",
                 
                 "",
-                "📍 *Yo'nalish:*",
-                f"{from_region}, {from_district} ➡️ {to_region}, {to_district}",
+                "📍 <b>Yo'nalish:</b>",
+                f"{_e(from_region)}, {_e(from_district)} ➡️ {_e(to_region)}, {_e(to_district)}",
                 "",
-                f"🚻 *Yo'lovchi jinsi:* {gender_label}",
+                f"🚻 <b>Yo'lovchi jinsi:</b> {_e(gender_label)}",
                 "",
-                f"🏷️ *Tarif:* {tariff_label}",
+                f"🏷️ <b>Tarif:</b> {_e(tariff_label)}",
                 "",
-                f"⏰ *Reja vaqt:* {reja_vaqt}",
+                f"⏰ <b>Reja vaqt:</b> {_e(reja_vaqt)}",
                 "",
-                f"💰 *Narx:* {_format_price(order.price)}",
+                f"💰 <b>Narx:</b> {_e(_format_price(order.price))}",
             ]
         )
         if not is_business_tariff:
-            lines.insert(lines.index(f"🏷️ *Tarif:* {tariff_label}"), f"💺 *O'rindiq:* {seat_label}")
-            lines.insert(lines.index(f"💺 *O'rindiq:* {seat_label}"), f"👥 *Yo'lovchilar soni:* {order.passengers} ta")
+            tariff_line = f"🏷️ <b>Tarif:</b> {_e(tariff_label)}"
+            seat_line = f"💺 <b>O'rindiq:</b> {_e(seat_label)}"
+            lines.insert(lines.index(tariff_line), seat_line)
+            lines.insert(lines.index(seat_line), f"👥 <b>Yo'lovchilar soni:</b> {_e(order.passengers)} ta")
     else:
         item_type = getattr(order.item_type, "value", order.item_type)
         lines.extend(
             [
-                "📦 *YANGI YETKAZIB BERISH BUYURTMA*",
+                "📦 <b>YANGI YETKAZIB BERISH BUYURTMA</b>",
                 "",
-                f"👤 *Jo'natuvchi:* {order.username}",
+                f"👤 <b>Jo'natuvchi:</b> {_e(order.username)}",
                 "",
-                "📍 *Yo'nalish:*",
-                f"{from_region}, {from_district} ➡️ {to_region}, {to_district}",
+                "📍 <b>Yo'nalish:</b>",
+                f"{_e(from_region)}, {_e(from_district)} ➡️ {_e(to_region)}, {_e(to_district)}",
                 "",
-                f"🧾 *Yuk turi:* {item_type}",
+                f"🧾 <b>Yuk turi:</b> {_e(item_type)}",
                 "",
-                f"⏰ *Reja vaqt:* {reja_vaqt}",
+                f"⏰ <b>Reja vaqt:</b> {_e(reja_vaqt)}",
                 "",
-                f"💰 *Narx:* {_format_price(order.price)}",
+                f"💰 <b>Narx:</b> {_e(_format_price(order.price))}",
             ]
         )
     if order.note:
-        lines.extend(["", f"📝 *Izoh:* {order.note}"])
+        lines.extend(["", f"📝 <b>Izoh:</b> {_e(order.note)}"])
     # Only show driver information for orders that have been accepted (not in PENDING status)
     # This prevents showing empty/incorrect driver fields for newly created orders
     
@@ -967,7 +1036,7 @@ def _send_telegram_message(text: str, order_id: Optional[int] = None, order_type
     payload = {
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": "Markdown",
+        "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
     context_label = f"(order_type={order_type}, order_id={order_id}, chat_id={chat_id})"
@@ -975,7 +1044,7 @@ def _send_telegram_message(text: str, order_id: Optional[int] = None, order_type
     if response and response.get("error_code") == 400:
         fallback_payload = dict(payload)
         fallback_payload.pop("parse_mode", None)
-        fallback_payload["text"] = _strip_telegram_markdown(text)
+        fallback_payload["text"] = _strip_telegram_html(text)
         response = _telegram_api_request("sendMessage", fallback_payload, context_label=context_label)
     if not response or not response.get("ok"):
         return None
@@ -1009,7 +1078,7 @@ def _edit_telegram_message(
         "chat_id": chat_id,
         "message_id": message_id,
         "text": text,
-        "parse_mode": "Markdown",
+        "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
     context_label = (
@@ -1020,7 +1089,7 @@ def _edit_telegram_message(
     if response and response.get("error_code") == 400:
         fallback_payload = dict(payload)
         fallback_payload.pop("parse_mode", None)
-        fallback_payload["text"] = _strip_telegram_markdown(text)
+        fallback_payload["text"] = _strip_telegram_html(text)
         response = _telegram_api_request("editMessageText", fallback_payload, context_label=context_label)
     return bool(response and response.get("ok"))
 
