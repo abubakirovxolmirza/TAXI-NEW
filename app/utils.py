@@ -1,7 +1,9 @@
 import asyncio
 import json
+import re
 import urllib.parse
 import urllib.request
+from urllib.error import HTTPError
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Tuple, Union, TYPE_CHECKING
@@ -745,13 +747,26 @@ def calculate_and_apply_bonus(db: Session, order: Union["TaxiOrder", "DeliveryOr
 
 
 def _telegram_enabled() -> bool:
-    return bool(settings.TELEGRAM_ORDER_BOT_TOKEN and settings.TELEGRAM_ORDER_CHANNEL_ID)
+    token = (settings.TELEGRAM_ORDER_BOT_TOKEN or "").strip()
+    chat_id = str(settings.TELEGRAM_ORDER_CHANNEL_ID or "").strip()
+    return bool(token and chat_id)
 
 
-def _telegram_api_request(method: str, payload: dict) -> Optional[dict]:
+def _truncate_telegram_text(text: str, max_len: int = 4000) -> str:
+    if len(text) <= max_len:
+        return text
+    return f"{text[:max_len - 3]}..."
+
+
+def _strip_telegram_markdown(text: str) -> str:
+    # Keep text readable if Telegram rejects markdown parsing.
+    return re.sub(r"[*_`\\[\\]()]", "", text)
+
+
+def _telegram_api_request(method: str, payload: dict, context_label: str = "") -> Optional[dict]:
     if not _telegram_enabled():
         return None
-    token = settings.TELEGRAM_ORDER_BOT_TOKEN
+    token = (settings.TELEGRAM_ORDER_BOT_TOKEN or "").strip()
     url = f"https://api.telegram.org/bot{token}/{method}"
     data = urllib.parse.urlencode(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data)
@@ -759,9 +774,20 @@ def _telegram_api_request(method: str, payload: dict) -> Optional[dict]:
         with urllib.request.urlopen(request, timeout=10) as response:
             content = response.read().decode("utf-8")
             return json.loads(content)
+    except HTTPError as exc:
+        error_body = ""
+        try:
+            error_body = exc.read().decode("utf-8")
+        except Exception:
+            pass
+        print(
+            f"Telegram API error ({exc.code}) in {method} {context_label}: "
+            f"{error_body or str(exc)}"
+        )
+        return {"ok": False, "error_code": exc.code, "description": error_body or str(exc)}
     except Exception as exc:
-        print(f"Telegram API error: {exc}")
-        return None
+        print(f"Telegram API error in {method} {context_label}: {exc}")
+        return {"ok": False, "description": str(exc)}
 
 
 def _resolve_region_name(db: Session, region_id: Optional[int]) -> str:
@@ -921,29 +947,81 @@ def _build_order_telegram_message(
     return "\n".join(lines)
 
 
-def _send_telegram_message(text: str) -> Optional[int]:
+def _send_telegram_message(text: str, order_id: Optional[int] = None, order_type: str = "unknown") -> Optional[int]:
+    chat_id = str(settings.TELEGRAM_ORDER_CHANNEL_ID or "").strip()
+    text = _truncate_telegram_text(text or "")
+    text_is_empty = not bool(text.strip())
+
+    print(
+        f"Telegram send attempt | order_type={order_type} order_id={order_id} "
+        f"chat_id={chat_id or '-'} text_empty={text_is_empty}"
+    )
+
+    if not chat_id:
+        print(f"Telegram send skipped | order_type={order_type} order_id={order_id} reason=empty_chat_id")
+        return None
+    if text_is_empty:
+        print(f"Telegram send skipped | order_type={order_type} order_id={order_id} reason=empty_text")
+        return None
+
     payload = {
-        "chat_id": settings.TELEGRAM_ORDER_CHANNEL_ID,
+        "chat_id": chat_id,
         "text": text,
         "parse_mode": "Markdown",
         "disable_web_page_preview": True,
     }
-    response = _telegram_api_request("sendMessage", payload)
+    context_label = f"(order_type={order_type}, order_id={order_id}, chat_id={chat_id})"
+    response = _telegram_api_request("sendMessage", payload, context_label=context_label)
+    if response and response.get("error_code") == 400:
+        fallback_payload = dict(payload)
+        fallback_payload.pop("parse_mode", None)
+        fallback_payload["text"] = _strip_telegram_markdown(text)
+        response = _telegram_api_request("sendMessage", fallback_payload, context_label=context_label)
     if not response or not response.get("ok"):
         return None
     result = response.get("result") or {}
     return result.get("message_id")
 
 
-def _edit_telegram_message(message_id: int, text: str) -> bool:
+def _edit_telegram_message(
+    message_id: int,
+    text: str,
+    order_id: Optional[int] = None,
+    order_type: str = "unknown",
+) -> bool:
+    chat_id = str(settings.TELEGRAM_ORDER_CHANNEL_ID or "").strip()
+    text = _truncate_telegram_text(text or "")
+    text_is_empty = not bool(text.strip())
+
+    print(
+        f"Telegram edit attempt | order_type={order_type} order_id={order_id} "
+        f"chat_id={chat_id or '-'} text_empty={text_is_empty} message_id={message_id}"
+    )
+
+    if not chat_id:
+        print(f"Telegram edit skipped | order_type={order_type} order_id={order_id} reason=empty_chat_id")
+        return False
+    if text_is_empty:
+        print(f"Telegram edit skipped | order_type={order_type} order_id={order_id} reason=empty_text")
+        return False
+
     payload = {
-        "chat_id": settings.TELEGRAM_ORDER_CHANNEL_ID,
+        "chat_id": chat_id,
         "message_id": message_id,
         "text": text,
         "parse_mode": "Markdown",
         "disable_web_page_preview": True,
     }
-    response = _telegram_api_request("editMessageText", payload)
+    context_label = (
+        f"(order_type={order_type}, order_id={order_id}, "
+        f"chat_id={chat_id}, message_id={message_id})"
+    )
+    response = _telegram_api_request("editMessageText", payload, context_label=context_label)
+    if response and response.get("error_code") == 400:
+        fallback_payload = dict(payload)
+        fallback_payload.pop("parse_mode", None)
+        fallback_payload["text"] = _strip_telegram_markdown(text)
+        response = _telegram_api_request("editMessageText", fallback_payload, context_label=context_label)
     return bool(response and response.get("ok"))
 
 
@@ -955,9 +1033,33 @@ async def send_order_telegram_message(
     driver: Optional[Driver] = None,
 ) -> Optional[int]:
     if not _telegram_enabled():
+        print(
+            f"Telegram disabled | skip send order_type={order_type} "
+            f"order_id={getattr(order, 'id', '?')}"
+        )
         return None
-    message = _build_order_telegram_message(db, order, order_type, status_label, driver)
-    return await asyncio.to_thread(_send_telegram_message, message)
+    try:
+        message = _build_order_telegram_message(db, order, order_type, status_label, driver)
+    except Exception as exc:
+        print(
+            f"Telegram message build error | order_type={order_type} "
+            f"order_id={getattr(order, 'id', '?')} error={exc}"
+        )
+        return None
+
+    try:
+        return await asyncio.to_thread(
+            _send_telegram_message,
+            message,
+            getattr(order, "id", None),
+            order_type,
+        )
+    except Exception as exc:
+        print(
+            f"Telegram send error | order_type={order_type} "
+            f"order_id={getattr(order, 'id', '?')} error={exc}"
+        )
+        return None
 
 
 async def update_order_telegram_message(
@@ -968,13 +1070,35 @@ async def update_order_telegram_message(
     driver: Optional[Driver] = None,
 ) -> Optional[int]:
     if not _telegram_enabled():
+        print(
+            f"Telegram disabled | skip update order_type={order_type} "
+            f"order_id={getattr(order, 'id', '?')}"
+        )
         return None
-    message = _build_order_telegram_message(db, order, order_type, status_label, driver)
-    message_id = getattr(order, "telegram_message_id", None)
-    if message_id:
-        updated = await asyncio.to_thread(_edit_telegram_message, message_id, message)
-        # Always return the existing message_id, whether edit succeeded or not
-        # This prevents sending duplicate messages
-        return message_id
-    # Only send a new message if there's no existing telegram_message_id
-    return await asyncio.to_thread(_send_telegram_message, message)
+    try:
+        message = _build_order_telegram_message(db, order, order_type, status_label, driver)
+        message_id = getattr(order, "telegram_message_id", None)
+        if message_id:
+            await asyncio.to_thread(
+                _edit_telegram_message,
+                message_id,
+                message,
+                getattr(order, "id", None),
+                order_type,
+            )
+            # Always return the existing message_id, whether edit succeeded or not
+            # This prevents sending duplicate messages
+            return message_id
+        # Only send a new message if there's no existing telegram_message_id
+        return await asyncio.to_thread(
+            _send_telegram_message,
+            message,
+            getattr(order, "id", None),
+            order_type,
+        )
+    except Exception as exc:
+        print(
+            f"Telegram update error | order_type={order_type} "
+            f"order_id={getattr(order, 'id', '?')} error={exc}"
+        )
+        return None
