@@ -212,6 +212,32 @@ def get_all_users(
     return users
 
 
+@router.get("/users/admins", response_model=List[UserResponse])
+def get_all_admin_users(
+    offset: int = Query(0, ge=0, description="Number of admins to skip"),
+    name: Optional[str] = Query(None, description="Filter by admin name"),
+    telephone: Optional[str] = Query(None, description="Filter by admin phone number"),
+    current_user: User = Depends(get_current_superadmin),
+    db: Session = Depends(get_db),
+):
+    """Get admin users only (SUPERADMIN only)."""
+    query = db.query(User).filter(User.role == UserRole.ADMIN)
+
+    if name:
+        query = query.filter(User.name.ilike(f"%{name.strip()}%"))
+
+    if telephone:
+        query = query.filter(User.telephone.ilike(f"%{telephone.strip()}%"))
+
+    admins = (
+        query
+        .order_by(User.created_at.desc())
+        .offset(offset)
+        .all()
+    )
+    return admins
+
+
 @router.get("/users/bonus-ball", response_model=List[BonusBallUserResponse])
 def get_all_bonus_ball(
     current_user: User = Depends(get_current_admin),
