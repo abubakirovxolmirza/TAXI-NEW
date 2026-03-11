@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
 from typing import List, Optional
@@ -185,11 +185,29 @@ def review_application(
 
 @router.get("/users", response_model=List[UserResponse])
 def get_all_users(
+    limit: int = Query(50, ge=1, le=500, description="Maximum number of users to return"),
+    offset: int = Query(0, ge=0, description="Number of users to skip"),
+    name: Optional[str] = Query(None, description="Filter by user name"),
+    telephone: Optional[str] = Query(None, description="Filter by phone number"),
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Get all users"""
-    users = db.query(User).order_by(User.created_at.desc()).all()
+    """Get users with optional pagination and filtering."""
+    query = db.query(User)
+
+    if name:
+        query = query.filter(User.name.ilike(f"%{name.strip()}%"))
+
+    if telephone:
+        query = query.filter(User.telephone.ilike(f"%{telephone.strip()}%"))
+
+    users = (
+        query
+        .order_by(User.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     return users
 
 
