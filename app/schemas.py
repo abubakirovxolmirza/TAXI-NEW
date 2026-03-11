@@ -518,6 +518,8 @@ class DriverResponse(BaseModel):
     id: int
     user_id: int
     full_name: str
+    telephone: Optional[str] = None
+    profile_picture: Optional[str] = None
     car_model: str
     car_number: str
     tariff: Tariff

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, extract
+from sqlalchemy import func, extract, or_
 from typing import List, Optional
 from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal
@@ -254,11 +254,40 @@ def update_bonus_ball(
 
 @router.get("/drivers", response_model=List[DriverResponse])
 def get_all_drivers(
+    limit: int = Query(50, ge=1, le=500, description="Maximum number of drivers to return"),
+    offset: int = Query(0, ge=0, description="Number of drivers to skip"),
+    name: Optional[str] = Query(None, description="Filter by driver name"),
+    telephone: Optional[str] = Query(None, description="Filter by driver phone number"),
+    car_number: Optional[str] = Query(None, description="Filter by car number"),
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Get all drivers"""
-    drivers = db.query(Driver).all()
+    """Get drivers with optional pagination and filtering."""
+    query = db.query(Driver).options(joinedload(Driver.user))
+
+    if name:
+        name_value = name.strip()
+        query = query.filter(
+            or_(
+                Driver.full_name.ilike(f"%{name_value}%"),
+                User.name.ilike(f"%{name_value}%"),
+            )
+        )
+
+    if telephone:
+        query = query.filter(User.telephone.ilike(f"%{telephone.strip()}%"))
+
+    if car_number:
+        query = query.filter(Driver.car_number.ilike(f"%{car_number.strip()}%"))
+
+    drivers = (
+        query
+        .join(User, Driver.user_id == User.id)
+        .order_by(Driver.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     return drivers
 
 
