@@ -316,6 +316,12 @@ class TaxiOrder(Base):
     to_district = relationship("District", foreign_keys=[to_district_id])
     rating = relationship("Rating", back_populates="taxi_order", uselist=False)
 
+    @property
+    def cancelled_by_user_name(self):
+        if not self.cancelled_by_user:
+            return None
+        return self.cancelled_by_user.name
+
 
 class DeliveryOrder(Base):
     __tablename__ = "delivery_orders"
@@ -373,6 +379,12 @@ class DeliveryOrder(Base):
     to_region = relationship("Region", foreign_keys=[to_region_id])
     to_district = relationship("District", foreign_keys=[to_district_id])
     rating = relationship("Rating", back_populates="delivery_order", uselist=False)
+
+    @property
+    def cancelled_by_user_name(self):
+        if not self.cancelled_by_user:
+            return None
+        return self.cancelled_by_user.name
 
 
 class Rating(Base):

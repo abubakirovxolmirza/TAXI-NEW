@@ -360,6 +360,7 @@ class TaxiOrderResponse(BaseModel):
     pending_time: Optional[int]
     cancellation_reason: Optional[str]
     cancelled_by_user_id: Optional[int]
+    cancelled_by_user_name: Optional[str]
     cancelled_by_role: Optional[str]
     created_at: datetime
     accepted_at: Optional[datetime]
@@ -456,6 +457,7 @@ class DeliveryOrderResponse(BaseModel):
     pending_time: Optional[int]
     cancellation_reason: Optional[str]
     cancelled_by_user_id: Optional[int]
+    cancelled_by_user_name: Optional[str]
     cancelled_by_role: Optional[str]
     created_at: datetime
     accepted_at: Optional[datetime]
