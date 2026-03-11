@@ -29,6 +29,7 @@ from app.schemas import (
     PricingBulkAdjustRequest, PricingBulkAdjustResponse,
     BalanceAdd, BalanceTransactionResponse, BroadcastMessage,
     FeedbackResponse, UserResponse, UserRoleUpdate,
+    FeedbackReplyRequest,
     BonusBallUpdate, BonusBallUserResponse,
     ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse,
     DriverVipUpdate, DriverBrendUpdate, DriverTariffUpdate, DriverControlUpdate,
@@ -946,7 +947,49 @@ def get_feedback(
     db: Session = Depends(get_db)
 ):
     """Get all feedback"""
-    feedback = db.query(Feedback).order_by(Feedback.created_at.desc()).all()
+    feedback = (
+        db.query(Feedback)
+        .options(joinedload(Feedback.user))
+        .order_by(Feedback.created_at.desc())
+        .all()
+    )
+    return feedback
+
+
+@router.post("/feedback/{feedback_id}/reply", response_model=FeedbackResponse)
+def reply_feedback(
+    feedback_id: int,
+    payload: FeedbackReplyRequest,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Reply to feedback, send notification to user, and mark feedback as reviewed."""
+    feedback = (
+        db.query(Feedback)
+        .options(joinedload(Feedback.user))
+        .filter(Feedback.id == feedback_id)
+        .first()
+    )
+    if not feedback:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Feedback not found",
+        )
+    if not feedback.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This feedback has no user_id. Cannot send in-app notification.",
+        )
+
+    feedback.is_reviewed = True
+    create_notification(
+        db=db,
+        title="Talab va taklifingizga javob keldi",
+        message=payload.message,
+        notification_type="feedback_reply",
+        user_id=feedback.user_id,
+    )
+    db.refresh(feedback)
     return feedback
 
 

@@ -10,6 +10,7 @@ from app.database import SessionLocal
 from app.models import (
     TaxiOrder,
     DeliveryOrder,
+    Driver,
     OrderStatus,
     DriverPhotoControl,
     DriverPhotoControlStatus,

@@ -981,9 +981,22 @@ class FeedbackCreate(BaseModel):
     message: str
 
 
+class FeedbackReplyRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="Reply text sent to the user")
+
+
+class FeedbackUserInfo(BaseModel):
+    name: str
+    telephone: str
+
+    class Config:
+        from_attributes = True
+
+
 class FeedbackResponse(BaseModel):
     id: int
     user_id: Optional[int]
+    user: Optional[FeedbackUserInfo] = None
     telegram_chat_id: Optional[str]
     message: str
     is_reviewed: bool
