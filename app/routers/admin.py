@@ -738,6 +738,55 @@ def get_all_pricing(
     return pricing
 
 
+@router.get("/delivery-pricing", response_model=List[PricingResponse])
+def get_all_delivery_pricing(
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Get all active delivery pricing configurations."""
+    pricing = db.query(Pricing).filter(
+        Pricing.is_active == True,
+        Pricing.service_type == "delivery",
+    ).all()
+    return pricing
+
+
+@router.put("/delivery-pricing/{pricing_id}", response_model=PricingResponse)
+def update_delivery_pricing(
+    pricing_id: int,
+    pricing_data: PricingUpdate,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Update a delivery pricing row by ID."""
+    pricing = db.query(Pricing).filter(Pricing.id == pricing_id).first()
+
+    if not pricing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pricing not found",
+        )
+    if pricing.service_type != "delivery":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This pricing is not delivery service type",
+        )
+
+    update_data = pricing_data.dict(exclude_unset=True)
+    if update_data.get("tariff") not in (None, Tariff.STANDARD):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Delivery pricing supports only standard tariff",
+        )
+
+    for key, value in update_data.items():
+        setattr(pricing, key, value)
+
+    db.commit()
+    db.refresh(pricing)
+    return pricing
+
+
 @router.delete("/pricing/{pricing_id}")
 def delete_pricing_by_id(
     pricing_id: int,

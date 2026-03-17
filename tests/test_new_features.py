@@ -487,6 +487,69 @@ class TestActiveDriversStats:
         assert float(top_driver["revenue"]) == 72000.00
 
 
+class TestDeliveryPricingAdmin:
+    """Test admin delivery pricing get-all and update endpoints."""
+
+    def test_get_all_delivery_pricing(self, admin_token, test_regions, db_session):
+        region1, region2 = test_regions
+
+        delivery_pricing = Pricing(
+            from_region_id=region1.id,
+            to_region_id=region2.id,
+            service_type="delivery",
+            tariff=Tariff.STANDARD,
+            base_price=Decimal("22000.00"),
+            is_active=True,
+        )
+        taxi_pricing = Pricing(
+            from_region_id=region1.id,
+            to_region_id=region2.id,
+            service_type="taxi",
+            tariff=Tariff.STANDARD,
+            base_price=Decimal("33000.00"),
+            is_active=True,
+        )
+        db_session.add_all([delivery_pricing, taxi_pricing])
+        db_session.commit()
+
+        response = client.get(
+            "/api/admin/delivery-pricing",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) >= 1
+        assert all(item["service_type"] == "delivery" for item in data)
+
+    def test_update_delivery_pricing(self, admin_token, test_regions, db_session):
+        region1, region2 = test_regions
+
+        pricing = Pricing(
+            from_region_id=region1.id,
+            to_region_id=region2.id,
+            service_type="delivery",
+            tariff=Tariff.STANDARD,
+            base_price=Decimal("21000.00"),
+            is_active=True,
+        )
+        db_session.add(pricing)
+        db_session.commit()
+        db_session.refresh(pricing)
+
+        response = client.put(
+            f"/api/admin/delivery-pricing/{pricing.id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "base_price": "26000.00",
+                "front_seat_price": "25000.00"
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["service_type"] == "delivery"
+        assert float(data["base_price"]) == 26000.00
+
+
 # Test Balance History
 class TestBalanceHistory:
     """Test balance transaction history"""
