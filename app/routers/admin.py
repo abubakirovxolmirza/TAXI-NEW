@@ -214,6 +214,7 @@ def get_all_users(
 
 @router.get("/users/admins", response_model=List[UserResponse])
 def get_all_admin_users(
+    limit: int = Query(50, ge=1, le=500, description="Maximum number of admins to return"),
     offset: int = Query(0, ge=0, description="Number of admins to skip"),
     name: Optional[str] = Query(None, description="Filter by admin name"),
     telephone: Optional[str] = Query(None, description="Filter by admin phone number"),
@@ -233,6 +234,7 @@ def get_all_admin_users(
         query
         .order_by(User.created_at.desc())
         .offset(offset)
+        .limit(limit)
         .all()
     )
     return admins
