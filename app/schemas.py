@@ -522,6 +522,7 @@ class DriverResponse(BaseModel):
     full_name: str
     telephone: Optional[str] = None
     profile_picture: Optional[str] = None
+    bonus_ball: Decimal
     car_model: str
     car_number: str
     tariff: Tariff

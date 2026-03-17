@@ -197,6 +197,10 @@ class Driver(Base):
     def profile_picture(self):
         return self.user.profile_picture if self.user else None
 
+    @property
+    def bonus_ball(self):
+        return self.user.bonus_ball if self.user else Decimal("0.00")
+
 
 class Region(Base):
     __tablename__ = "regions"
