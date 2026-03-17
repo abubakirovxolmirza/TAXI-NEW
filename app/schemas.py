@@ -1,4 +1,4 @@
-from pydantic import BaseModel, validator, Field
+from pydantic import BaseModel, validator, Field, root_validator
 from typing import Optional, List, Literal
 from datetime import datetime
 from decimal import Decimal
@@ -577,6 +577,31 @@ class DriverStatistics(BaseModel):
     rating: Decimal
 
 
+class ActiveDriverStatsItem(BaseModel):
+    driver_id: int
+    full_name: str
+    telephone: Optional[str] = None
+    car_number: str
+    tariff: Tariff
+    rating: Decimal
+    balance: Decimal
+    accepted_orders: int
+    completed_orders: int
+    cancelled_orders: int
+    total_orders: int
+    revenue: Decimal
+    completion_rate: Decimal
+    cancellation_rate: Decimal
+    avg_revenue_per_completed: Decimal
+
+
+class ActiveDriverStatsResponse(BaseModel):
+    period: Literal["daily", "monthly", "yearly"]
+    start_date: datetime
+    end_date: datetime
+    drivers: List[ActiveDriverStatsItem]
+
+
 class DriverPhotoControlSubmitRequest(BaseModel):
     front_image: str = Field(..., min_length=1, max_length=255)
     back_image: str = Field(..., min_length=1, max_length=255)
@@ -791,8 +816,10 @@ class BalanceHistoryDetail(BaseModel):
 
 # District Pricing Schemas
 class DistrictPricingCreate(BaseModel):
-    from_district_id: int
-    to_district_id: int
+    from_district_id: Optional[int] = None
+    to_district_id: Optional[int] = None
+    from_district_ids: Optional[List[int]] = None
+    to_district_ids: Optional[List[int]] = None
     service_type: str  # "taxi" or "delivery"
     tariff: Tariff = Tariff.STANDARD
     base_price: Decimal
@@ -808,6 +835,20 @@ class DistrictPricingCreate(BaseModel):
         if values.get("service_type") == "delivery" and v != Tariff.STANDARD:
             raise ValueError("Delivery pricing supports only standard tariff")
         return v
+
+    @root_validator(skip_on_failure=True)
+    def validate_district_inputs(cls, values):
+        from_single = values.get("from_district_id")
+        to_single = values.get("to_district_id")
+        from_many = values.get("from_district_ids") or []
+        to_many = values.get("to_district_ids") or []
+
+        if from_single is None and not from_many:
+            raise ValueError("At least one from district is required")
+        if to_single is None and not to_many:
+            raise ValueError("At least one to district is required")
+
+        return values
 
 
 class DistrictPricingUpdate(BaseModel):

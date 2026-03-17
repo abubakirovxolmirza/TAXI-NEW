@@ -171,34 +171,77 @@ def delete_district(
 
 
 # District Pricing Management
-@router.post("/district-pricing", response_model=DistrictPricingResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/district-pricing", response_model=List[DistrictPricingResponse], status_code=status.HTTP_201_CREATED)
 def create_district_pricing(
     pricing_data: DistrictPricingCreate,
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Create district-level pricing (Admin only)"""
-    # Check if pricing already exists
-    existing = db.query(DistrictPricing).filter(
-        DistrictPricing.from_district_id == pricing_data.from_district_id,
-        DistrictPricing.to_district_id == pricing_data.to_district_id,
-        DistrictPricing.service_type == pricing_data.service_type,
-        DistrictPricing.tariff == pricing_data.tariff,
-        DistrictPricing.is_active == True
-    ).first()
-    
-    if existing:
+    """Create or update district-level pricing for one or many routes (Admin only)."""
+    from_ids = set(pricing_data.from_district_ids or [])
+    to_ids = set(pricing_data.to_district_ids or [])
+    if pricing_data.from_district_id is not None:
+        from_ids.add(pricing_data.from_district_id)
+    if pricing_data.to_district_id is not None:
+        to_ids.add(pricing_data.to_district_id)
+
+    all_district_ids = from_ids | to_ids
+    existing_district_ids = {
+        district_id
+        for (district_id,) in db.query(District.id)
+        .filter(District.id.in_(all_district_ids), District.is_active == True)
+        .all()
+    }
+    missing_ids = sorted(all_district_ids - existing_district_ids)
+    if missing_ids:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="District pricing for this route already exists"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"District(s) not found or inactive: {', '.join(str(x) for x in missing_ids)}",
         )
-    
-    new_pricing = DistrictPricing(**pricing_data.dict())
-    db.add(new_pricing)
+
+    payload = {
+        "service_type": pricing_data.service_type,
+        "tariff": pricing_data.tariff,
+        "base_price": pricing_data.base_price,
+        "front_seat_price": pricing_data.front_seat_price,
+        "back_seat_price": pricing_data.back_seat_price,
+        "discount_1_passenger": pricing_data.discount_1_passenger,
+        "discount_2_passengers": pricing_data.discount_2_passengers,
+        "discount_3_passengers": pricing_data.discount_3_passengers,
+        "discount_full_car": pricing_data.discount_full_car,
+    }
+
+    upserted: List[DistrictPricing] = []
+
+    for from_district_id in sorted(from_ids):
+        for to_district_id in sorted(to_ids):
+            existing = db.query(DistrictPricing).filter(
+                DistrictPricing.from_district_id == from_district_id,
+                DistrictPricing.to_district_id == to_district_id,
+                DistrictPricing.service_type == pricing_data.service_type,
+                DistrictPricing.tariff == pricing_data.tariff,
+            ).first()
+
+            if existing:
+                for key, value in payload.items():
+                    setattr(existing, key, value)
+                existing.is_active = True
+                upserted.append(existing)
+                continue
+
+            new_pricing = DistrictPricing(
+                from_district_id=from_district_id,
+                to_district_id=to_district_id,
+                **payload,
+            )
+            db.add(new_pricing)
+            upserted.append(new_pricing)
+
     db.commit()
-    db.refresh(new_pricing)
-    
-    return new_pricing
+    for item in upserted:
+        db.refresh(item)
+
+    return upserted
 
 
 @router.put("/district-pricing/{pricing_id}", response_model=DistrictPricingResponse)

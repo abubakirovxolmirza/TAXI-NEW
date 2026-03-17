@@ -3,11 +3,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from decimal import Decimal
+from datetime import datetime, timezone
 
 from app.database import Base, get_db
 from app.models import (
     User, UserRole, Region, District, Pricing, 
-    DistrictPricing, Driver, BalanceTransaction
+    DistrictPricing, Driver, BalanceTransaction, Tariff,
+    TaxiOrder, DeliveryOrder, OrderStatus, ItemType
 )
 from app.auth import get_password_hash
 from main import app
@@ -279,8 +281,63 @@ class TestDistrictPricing:
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["service_type"] == "taxi"
-        assert float(data["base_price"]) == 15000.00
+        assert len(data) == 1
+        assert data[0]["service_type"] == "taxi"
+        assert float(data[0]["base_price"]) == 15000.00
+
+    def test_create_district_pricing_bulk_upsert(self, admin_token, test_districts, db_session):
+        """Test bulk create with upsert behavior for district pricing."""
+        district1, district2, district3 = test_districts
+
+        existing = DistrictPricing(
+            from_district_id=district1.id,
+            to_district_id=district2.id,
+            service_type="taxi",
+            base_price=Decimal("12000.00"),
+            is_active=True,
+        )
+        db_session.add(existing)
+        db_session.commit()
+
+        response = client.post(
+            "/api/admin/regions/district-pricing",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "from_district_ids": [district1.id, district3.id],
+                "to_district_ids": [district2.id],
+                "service_type": "taxi",
+                "tariff": "standard",
+                "base_price": "18000.00",
+                "front_seat_price": "17000.00",
+                "back_seat_price": "19000.00",
+                "discount_1_passenger": "5.00",
+                "discount_2_passengers": "10.00",
+                "discount_3_passengers": "15.00",
+                "discount_full_car": "20.00"
+            }
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert len(data) == 2
+
+        updated = db_session.query(DistrictPricing).filter(
+            DistrictPricing.from_district_id == district1.id,
+            DistrictPricing.to_district_id == district2.id,
+            DistrictPricing.service_type == "taxi",
+            DistrictPricing.tariff == Tariff.STANDARD,
+        ).all()
+        assert len(updated) == 1
+        assert float(updated[0].base_price) == 18000.00
+
+        created = db_session.query(DistrictPricing).filter(
+            DistrictPricing.from_district_id == district3.id,
+            DistrictPricing.to_district_id == district2.id,
+            DistrictPricing.service_type == "taxi",
+            DistrictPricing.tariff == Tariff.STANDARD,
+        ).all()
+        assert len(created) == 1
+        assert float(created[0].base_price) == 18000.00
     
     def test_update_district_pricing(self, admin_token, test_districts, db_session):
         """Test updating district-level pricing"""
@@ -339,6 +396,95 @@ class TestDistrictPricing:
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 2
+
+
+# Test Active Drivers Stats
+class TestActiveDriversStats:
+    """Test active drivers statistics endpoint"""
+
+    def test_get_active_drivers_statistics(self, admin_token, test_driver, test_districts, db_session):
+        """Should return aggregated active-driver metrics for selected period."""
+        district1, district2, district3 = test_districts
+
+        taxi_completed = TaxiOrder(
+            user_id=test_driver.user_id,
+            driver_id=test_driver.id,
+            username="Client One",
+            telephone="998900000001",
+            from_region_id=district1.region_id,
+            from_district_id=district1.id,
+            to_region_id=district2.region_id,
+            to_district_id=district2.id,
+            passengers=2,
+            date="17.03.2026",
+            time_start="10:00",
+            time_end="11:00",
+            price=Decimal("50000.00"),
+            service_fee=Decimal("5000.00"),
+            driver_earnings=Decimal("45000.00"),
+            status=OrderStatus.COMPLETED,
+            accepted_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
+        )
+        taxi_cancelled = TaxiOrder(
+            user_id=test_driver.user_id,
+            driver_id=test_driver.id,
+            username="Client Two",
+            telephone="998900000002",
+            from_region_id=district1.region_id,
+            from_district_id=district1.id,
+            to_region_id=district3.region_id,
+            to_district_id=district3.id,
+            passengers=1,
+            date="17.03.2026",
+            time_start="12:00",
+            time_end="13:00",
+            price=Decimal("40000.00"),
+            service_fee=Decimal("4000.00"),
+            driver_earnings=Decimal("36000.00"),
+            status=OrderStatus.CANCELLED,
+            accepted_at=datetime.now(timezone.utc),
+            cancelled_at=datetime.now(timezone.utc),
+        )
+        delivery_completed = DeliveryOrder(
+            user_id=test_driver.user_id,
+            driver_id=test_driver.id,
+            username="Sender",
+            sender_telephone="998900000003",
+            receiver_telephone="998900000004",
+            from_region_id=district1.region_id,
+            from_district_id=district1.id,
+            to_region_id=district2.region_id,
+            to_district_id=district2.id,
+            who_pay="recipient",
+            item_type=ItemType.BOX,
+            date="17.03.2026",
+            time_start="14:00",
+            time_end="15:00",
+            price=Decimal("30000.00"),
+            service_fee=Decimal("3000.00"),
+            driver_earnings=Decimal("27000.00"),
+            status=OrderStatus.COMPLETED,
+            accepted_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add_all([taxi_completed, taxi_cancelled, delivery_completed])
+        db_session.commit()
+
+        response = client.get(
+            "/api/admin/drivers/active/stats?period=daily&limit=5",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["period"] == "daily"
+        assert len(data["drivers"]) >= 1
+        top_driver = data["drivers"][0]
+        assert top_driver["driver_id"] == test_driver.id
+        assert top_driver["accepted_orders"] == 3
+        assert top_driver["completed_orders"] == 2
+        assert top_driver["cancelled_orders"] == 1
+        assert float(top_driver["revenue"]) == 72000.00
 
 
 # Test Balance History

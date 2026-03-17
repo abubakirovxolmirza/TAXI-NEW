@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, extract, or_
+from sqlalchemy import func, extract, or_, case
 from typing import List, Optional
 from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal
@@ -33,6 +33,7 @@ from app.schemas import (
     BonusBallUpdate, BonusBallUserResponse,
     ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse,
     DriverVipUpdate, DriverBrendUpdate, DriverTariffUpdate, DriverControlUpdate,
+    ActiveDriverStatsResponse, ActiveDriverStatsItem,
 )
 from app.auth import get_current_admin, get_current_superadmin
 from app.utils import (
@@ -995,6 +996,146 @@ def get_order_statistics(
             "cancelled": delivery_stats.cancelled or 0,
             "revenue": str(delivery_stats.revenue or 0)
         }
+    }
+
+
+@router.get("/drivers/active/stats", response_model=ActiveDriverStatsResponse)
+def get_active_drivers_statistics(
+    period: str = Query("daily", pattern="^(daily|monthly|yearly)$"),
+    limit: int = Query(10, ge=1, le=200, description="Number of drivers to return"),
+    include_blocked: bool = Query(False, description="Include blocked drivers in ranking"),
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Get most active drivers by period with acceptance, completion, cancellation, and revenue stats."""
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    if period == "daily":
+        start_date = today
+    elif period == "monthly":
+        start_date = today.replace(day=1)
+    else:  # yearly
+        start_date = today.replace(month=1, day=1)
+
+    start_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+    end_dt = now
+
+    taxi_stats = db.query(
+        TaxiOrder.driver_id.label("driver_id"),
+        func.count(TaxiOrder.id).label("accepted_orders"),
+        func.coalesce(func.sum(case((TaxiOrder.status == OrderStatus.COMPLETED, 1), else_=0)), 0).label("completed_orders"),
+        func.coalesce(func.sum(case((TaxiOrder.status == OrderStatus.CANCELLED, 1), else_=0)), 0).label("cancelled_orders"),
+        func.coalesce(
+            func.sum(case((TaxiOrder.status == OrderStatus.COMPLETED, TaxiOrder.driver_earnings), else_=0)),
+            0,
+        ).label("revenue"),
+    ).filter(
+        TaxiOrder.driver_id.isnot(None),
+        TaxiOrder.accepted_at.isnot(None),
+        TaxiOrder.created_at >= start_dt,
+        TaxiOrder.created_at <= end_dt,
+    ).group_by(TaxiOrder.driver_id).all()
+
+    delivery_stats = db.query(
+        DeliveryOrder.driver_id.label("driver_id"),
+        func.count(DeliveryOrder.id).label("accepted_orders"),
+        func.coalesce(func.sum(case((DeliveryOrder.status == OrderStatus.COMPLETED, 1), else_=0)), 0).label("completed_orders"),
+        func.coalesce(func.sum(case((DeliveryOrder.status == OrderStatus.CANCELLED, 1), else_=0)), 0).label("cancelled_orders"),
+        func.coalesce(
+            func.sum(case((DeliveryOrder.status == OrderStatus.COMPLETED, DeliveryOrder.driver_earnings), else_=0)),
+            0,
+        ).label("revenue"),
+    ).filter(
+        DeliveryOrder.driver_id.isnot(None),
+        DeliveryOrder.accepted_at.isnot(None),
+        DeliveryOrder.created_at >= start_dt,
+        DeliveryOrder.created_at <= end_dt,
+    ).group_by(DeliveryOrder.driver_id).all()
+
+    aggregated: dict[int, dict] = {}
+
+    for row in list(taxi_stats) + list(delivery_stats):
+        driver_id = int(row.driver_id)
+        if driver_id not in aggregated:
+            aggregated[driver_id] = {
+                "accepted_orders": 0,
+                "completed_orders": 0,
+                "cancelled_orders": 0,
+                "revenue": Decimal("0.00"),
+            }
+        aggregated[driver_id]["accepted_orders"] += int(row.accepted_orders or 0)
+        aggregated[driver_id]["completed_orders"] += int(row.completed_orders or 0)
+        aggregated[driver_id]["cancelled_orders"] += int(row.cancelled_orders or 0)
+        aggregated[driver_id]["revenue"] += Decimal(str(row.revenue or 0))
+
+    if not aggregated:
+        return {
+            "period": period,
+            "start_date": start_dt,
+            "end_date": end_dt,
+            "drivers": [],
+        }
+
+    drivers_query = db.query(Driver).options(joinedload(Driver.user)).filter(Driver.id.in_(aggregated.keys()))
+    if not include_blocked:
+        drivers_query = drivers_query.filter(Driver.is_blocked == False)
+    drivers = drivers_query.all()
+
+    result: List[ActiveDriverStatsItem] = []
+    for driver in drivers:
+        stats = aggregated.get(driver.id)
+        if not stats:
+            continue
+        accepted_orders = int(stats["accepted_orders"])
+        completed_orders = int(stats["completed_orders"])
+        cancelled_orders = int(stats["cancelled_orders"])
+        revenue = Decimal(str(stats["revenue"]))
+        total_orders = accepted_orders
+
+        completion_rate = Decimal("0.00")
+        cancellation_rate = Decimal("0.00")
+        if total_orders > 0:
+            completion_rate = (Decimal(completed_orders) * Decimal("100") / Decimal(total_orders)).quantize(Decimal("0.01"))
+            cancellation_rate = (Decimal(cancelled_orders) * Decimal("100") / Decimal(total_orders)).quantize(Decimal("0.01"))
+
+        avg_revenue = Decimal("0.00")
+        if completed_orders > 0:
+            avg_revenue = (revenue / Decimal(completed_orders)).quantize(Decimal("0.01"))
+
+        result.append(
+            ActiveDriverStatsItem(
+                driver_id=driver.id,
+                full_name=driver.full_name,
+                telephone=driver.telephone,
+                car_number=driver.car_number,
+                tariff=driver.tariff,
+                rating=driver.rating or Decimal("0.00"),
+                balance=driver.balance or Decimal("0.00"),
+                accepted_orders=accepted_orders,
+                completed_orders=completed_orders,
+                cancelled_orders=cancelled_orders,
+                total_orders=total_orders,
+                revenue=revenue.quantize(Decimal("0.01")),
+                completion_rate=completion_rate,
+                cancellation_rate=cancellation_rate,
+                avg_revenue_per_completed=avg_revenue,
+            )
+        )
+
+    result.sort(
+        key=lambda item: (
+            item.accepted_orders,
+            item.completed_orders,
+            item.revenue,
+        ),
+        reverse=True,
+    )
+
+    return {
+        "period": period,
+        "start_date": start_dt,
+        "end_date": end_dt,
+        "drivers": result[:limit],
     }
 
 
