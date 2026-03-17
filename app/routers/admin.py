@@ -740,14 +740,23 @@ def get_all_pricing(
 
 @router.get("/delivery-pricing", response_model=List[PricingResponse])
 def get_all_delivery_pricing(
+    from_region_id: Optional[int] = Query(None, description="Filter by source region"),
+    to_region_id: Optional[int] = Query(None, description="Filter by destination region"),
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
     """Get all active delivery pricing configurations."""
-    pricing = db.query(Pricing).filter(
+    query = db.query(Pricing).filter(
         Pricing.is_active == True,
         Pricing.service_type == "delivery",
-    ).all()
+    )
+
+    if from_region_id is not None:
+        query = query.filter(Pricing.from_region_id == from_region_id)
+    if to_region_id is not None:
+        query = query.filter(Pricing.to_region_id == to_region_id)
+
+    pricing = query.all()
     return pricing
 
 

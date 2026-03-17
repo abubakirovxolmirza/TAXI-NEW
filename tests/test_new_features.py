@@ -509,17 +509,27 @@ class TestDeliveryPricingAdmin:
             base_price=Decimal("33000.00"),
             is_active=True,
         )
-        db_session.add_all([delivery_pricing, taxi_pricing])
+        other_delivery_pricing = Pricing(
+            from_region_id=region2.id,
+            to_region_id=region1.id,
+            service_type="delivery",
+            tariff=Tariff.STANDARD,
+            base_price=Decimal("24000.00"),
+            is_active=True,
+        )
+        db_session.add_all([delivery_pricing, taxi_pricing, other_delivery_pricing])
         db_session.commit()
 
         response = client.get(
-            "/api/admin/delivery-pricing",
+            f"/api/admin/delivery-pricing?from_region_id={region1.id}&to_region_id={region2.id}",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) >= 1
+        assert len(data) == 1
         assert all(item["service_type"] == "delivery" for item in data)
+        assert data[0]["from_region_id"] == region1.id
+        assert data[0]["to_region_id"] == region2.id
 
     def test_update_delivery_pricing(self, admin_token, test_regions, db_session):
         region1, region2 = test_regions
