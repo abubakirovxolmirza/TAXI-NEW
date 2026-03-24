@@ -256,6 +256,22 @@ def get_all_bonus_ball(
     return users
 
 
+@router.get("/users/{user_id}", response_model=UserResponse)
+def get_user_by_id(
+    user_id: int,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Get user details by user ID (admin/superadmin only)."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    return user
+
+
 @router.put("/users/{user_id}/bonus-ball", response_model=BonusBallUserResponse)
 def update_bonus_ball(
     user_id: int,
