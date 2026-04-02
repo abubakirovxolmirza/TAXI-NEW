@@ -176,6 +176,7 @@ class Driver(Base):
         nullable=False,
     )
     is_blocked = Column(Boolean, default=False, nullable=False)
+    block_reason = Column(Text, nullable=True)
     is_worked = Column(Boolean, default=False, nullable=False)
     control = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

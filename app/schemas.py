@@ -535,6 +535,7 @@ class DriverResponse(BaseModel):
     vip_expires_at: Optional[datetime]
     brend: bool
     is_blocked: bool
+    block_reason: Optional[str]
     is_worked: bool
     control: bool
     created_at: datetime
@@ -564,6 +565,17 @@ class DriverTariffUpdate(BaseModel):
 
 class DriverControlUpdate(BaseModel):
     control: bool
+
+
+class DriverBlockRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=500)
+
+    @validator("reason")
+    def validate_reason(cls, v):
+        value = (v or "").strip()
+        if not value:
+            raise ValueError("reason is required")
+        return value
 
 
 class DriverStatistics(BaseModel):

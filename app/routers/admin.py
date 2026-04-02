@@ -32,7 +32,7 @@ from app.schemas import (
     FeedbackReplyRequest,
     BonusBallUpdate, BonusBallUserResponse,
     ServiceFeeUpdate, ServiceFeeResponse, SystemSettingResponse,
-    DriverVipUpdate, DriverBrendUpdate, DriverTariffUpdate, DriverControlUpdate,
+    DriverVipUpdate, DriverBrendUpdate, DriverTariffUpdate, DriverControlUpdate, DriverBlockRequest,
     ActiveDriverStatsResponse, ActiveDriverStatsItem,
 )
 from app.auth import get_current_admin, get_current_superadmin
@@ -304,6 +304,7 @@ def get_all_drivers(
     name: Optional[str] = Query(None, description="Filter by driver name"),
     telephone: Optional[str] = Query(None, description="Filter by driver phone number"),
     car_number: Optional[str] = Query(None, description="Filter by car number"),
+    brend: Optional[bool] = Query(None, description="Filter by brend flag"),
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
@@ -325,6 +326,9 @@ def get_all_drivers(
     if car_number:
         query = query.filter(Driver.car_number.ilike(f"%{car_number.strip()}%"))
 
+    if brend is not None:
+        query = query.filter(Driver.brend == brend)
+
     drivers = (
         query
         .join(User, Driver.user_id == User.id)
@@ -334,6 +338,49 @@ def get_all_drivers(
         .all()
     )
     return drivers
+
+
+@router.get("/drivers/blocked", response_model=List[DriverResponse])
+def get_blocked_drivers(
+    limit: int = Query(50, ge=1, le=500, description="Maximum number of blocked drivers to return"),
+    offset: int = Query(0, ge=0, description="Number of blocked drivers to skip"),
+    name: Optional[str] = Query(None, description="Filter by driver name"),
+    telephone: Optional[str] = Query(None, description="Filter by driver phone number"),
+    car_number: Optional[str] = Query(None, description="Filter by car number"),
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Get blocked drivers with their block reasons (ADMIN or SUPERADMIN only)."""
+    query = (
+        db.query(Driver)
+        .options(joinedload(Driver.user))
+        .join(User, Driver.user_id == User.id)
+        .filter(Driver.is_blocked == True)
+    )
+
+    if name:
+        name_value = name.strip()
+        query = query.filter(
+            or_(
+                Driver.full_name.ilike(f"%{name_value}%"),
+                User.name.ilike(f"%{name_value}%"),
+            )
+        )
+
+    if telephone:
+        query = query.filter(User.telephone.ilike(f"%{telephone.strip()}%"))
+
+    if car_number:
+        query = query.filter(Driver.car_number.ilike(f"%{car_number.strip()}%"))
+
+    blocked_drivers = (
+        query
+        .order_by(Driver.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    return blocked_drivers
 
 
 @router.get("/drivers/{driver_id}", response_model=DriverResponse)
@@ -450,6 +497,7 @@ def update_driver_control(
 @router.post("/drivers/{driver_id}/block")
 def block_driver(
     driver_id: int,
+    block_data: DriverBlockRequest,
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
@@ -463,19 +511,26 @@ def block_driver(
         )
     
     driver.is_blocked = True
+    driver.block_reason = block_data.reason.strip()
     db.commit()
     
     # Notify driver
     notification = get_notification_message("account_blocked")
+    notify_message = f"{notification['message']} Sabab: {driver.block_reason}"
     create_notification(
         db=db,
         title=notification["title"],
-        message=notification["message"],
+        message=notify_message,
         notification_type="account_blocked",
         driver_id=driver_id
     )
     
-    return {"success": True, "message": "Driver blocked successfully"}
+    return {
+        "success": True,
+        "message": "Driver blocked successfully",
+        "driver_id": driver_id,
+        "reason": driver.block_reason,
+    }
 
 
 @router.post("/drivers/{driver_id}/unblock")
@@ -494,6 +549,7 @@ def unblock_driver(
         )
     
     driver.is_blocked = False
+    driver.block_reason = None
     db.commit()
     
     # Notify driver
