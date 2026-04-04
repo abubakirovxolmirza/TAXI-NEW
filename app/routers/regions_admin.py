@@ -177,7 +177,13 @@ def create_district_pricing(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Create or update district-level pricing for one or many routes (Admin only)."""
+    """Create or update district-level pricing for one or many routes (Admin only).
+
+    Enhancements:
+    - `tariff_pricings`: send multiple tariff prices in one request; each is upserted.
+    - `both_directions`: also creates/upserts reverse (to→from) pairs in addition to forward pairs.
+    Legacy one-way, single-tariff behaviour stays unchanged when these fields are not provided.
+    """
     from_ids = set(pricing_data.from_district_ids or [])
     to_ids = set(pricing_data.to_district_ids or [])
     if pricing_data.from_district_id is not None:
@@ -199,27 +205,54 @@ def create_district_pricing(
             detail=f"District(s) not found or inactive: {', '.join(str(x) for x in missing_ids)}",
         )
 
-    payload = {
-        "service_type": pricing_data.service_type,
-        "tariff": pricing_data.tariff,
-        "base_price": pricing_data.base_price,
-        "front_seat_price": pricing_data.front_seat_price,
-        "back_seat_price": pricing_data.back_seat_price,
-        "discount_1_passenger": pricing_data.discount_1_passenger,
-        "discount_2_passengers": pricing_data.discount_2_passengers,
-        "discount_3_passengers": pricing_data.discount_3_passengers,
-        "discount_full_car": pricing_data.discount_full_car,
-    }
+    # Build district pairs (optionally both directions)
+    pairs = set()
+    for from_district_id in from_ids:
+        for to_district_id in to_ids:
+            pairs.add((from_district_id, to_district_id))
+            if pricing_data.both_directions:
+                pairs.add((to_district_id, from_district_id))
+
+    # Build tariff payloads (single tariff legacy or multi-tariff mode)
+    if pricing_data.tariff_pricings:
+        pricing_payloads = [
+            {
+                "service_type": pricing_data.service_type,
+                "tariff": tp.tariff,
+                "base_price": tp.base_price,
+                "front_seat_price": tp.front_seat_price,
+                "back_seat_price": tp.back_seat_price,
+                "discount_1_passenger": tp.discount_1_passenger,
+                "discount_2_passengers": tp.discount_2_passengers,
+                "discount_3_passengers": tp.discount_3_passengers,
+                "discount_full_car": tp.discount_full_car,
+            }
+            for tp in pricing_data.tariff_pricings
+        ]
+    else:
+        pricing_payloads = [
+            {
+                "service_type": pricing_data.service_type,
+                "tariff": pricing_data.tariff,
+                "base_price": pricing_data.base_price,
+                "front_seat_price": pricing_data.front_seat_price,
+                "back_seat_price": pricing_data.back_seat_price,
+                "discount_1_passenger": pricing_data.discount_1_passenger,
+                "discount_2_passengers": pricing_data.discount_2_passengers,
+                "discount_3_passengers": pricing_data.discount_3_passengers,
+                "discount_full_car": pricing_data.discount_full_car,
+            }
+        ]
 
     upserted: List[DistrictPricing] = []
 
-    for from_district_id in sorted(from_ids):
-        for to_district_id in sorted(to_ids):
+    for from_district_id, to_district_id in sorted(pairs):
+        for payload in pricing_payloads:
             existing = db.query(DistrictPricing).filter(
                 DistrictPricing.from_district_id == from_district_id,
                 DistrictPricing.to_district_id == to_district_id,
-                DistrictPricing.service_type == pricing_data.service_type,
-                DistrictPricing.tariff == pricing_data.tariff,
+                DistrictPricing.service_type == payload["service_type"],
+                DistrictPricing.tariff == payload["tariff"],
             ).first()
 
             if existing:

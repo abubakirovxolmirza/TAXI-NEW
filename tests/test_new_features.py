@@ -338,6 +338,44 @@ class TestDistrictPricing:
         ).all()
         assert len(created) == 1
         assert float(created[0].base_price) == 18000.00
+
+    def test_create_district_pricing_multi_tariff_both_directions(self, admin_token, test_districts, db_session):
+        """Send multiple tariffs in one request and create both directions."""
+        district1, district2, _ = test_districts
+
+        response = client.post(
+            "/api/admin/regions/district-pricing",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "from_district_ids": [district1.id],
+                "to_district_ids": [district2.id],
+                "service_type": "taxi",
+                "both_directions": True,
+                "tariff_pricings": [
+                    {"tariff": "standard", "base_price": "20000.00"},
+                    {"tariff": "comfort", "base_price": "25000.00"}
+                ]
+            }
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        # 2 tariffs * 2 directions
+        assert len(data) == 4
+
+        forward_standard = db_session.query(DistrictPricing).filter(
+            DistrictPricing.from_district_id == district1.id,
+            DistrictPricing.to_district_id == district2.id,
+            DistrictPricing.tariff == Tariff.STANDARD,
+        ).one()
+        reverse_comfort = db_session.query(DistrictPricing).filter(
+            DistrictPricing.from_district_id == district2.id,
+            DistrictPricing.to_district_id == district1.id,
+            DistrictPricing.tariff == Tariff.COMFORT,
+        ).one()
+
+        assert float(forward_standard.base_price) == 20000.00
+        assert float(reverse_comfort.base_price) == 25000.00
     
     def test_update_district_pricing(self, admin_token, test_districts, db_session):
         """Test updating district-level pricing"""

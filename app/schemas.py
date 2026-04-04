@@ -826,13 +826,9 @@ class BalanceHistoryDetail(BaseModel):
         from_attributes = True
 
 
-# District Pricing Schemas
-class DistrictPricingCreate(BaseModel):
-    from_district_id: Optional[int] = None
-    to_district_id: Optional[int] = None
-    from_district_ids: Optional[List[int]] = None
-    to_district_ids: Optional[List[int]] = None
-    service_type: str  # "taxi" or "delivery"
+class DistrictTariffPricing(BaseModel):
+    """Payload for a single tariff's pricing within a bulk request."""
+
     tariff: Tariff = Tariff.STANDARD
     base_price: Decimal
     front_seat_price: Optional[Decimal] = None
@@ -842,23 +838,61 @@ class DistrictPricingCreate(BaseModel):
     discount_3_passengers: Decimal = Decimal("0.00")
     discount_full_car: Decimal = Decimal("0.00")
 
+
+# District Pricing Schemas
+class DistrictPricingCreate(BaseModel):
+    from_district_id: Optional[int] = None
+    to_district_id: Optional[int] = None
+    from_district_ids: Optional[List[int]] = None
+    to_district_ids: Optional[List[int]] = None
+    service_type: str  # "taxi" or "delivery"
+    tariff: Tariff = Tariff.STANDARD  # kept for backward compatibility (single-tariff mode)
+    base_price: Optional[Decimal] = None
+    front_seat_price: Optional[Decimal] = None
+    back_seat_price: Optional[Decimal] = None
+    discount_1_passenger: Decimal = Decimal("0.00")
+    discount_2_passengers: Decimal = Decimal("0.00")
+    discount_3_passengers: Decimal = Decimal("0.00")
+    discount_full_car: Decimal = Decimal("0.00")
+    # New options
+    tariff_pricings: Optional[List[DistrictTariffPricing]] = None  # supply many tariffs in one call
+    both_directions: bool = False  # when True, also creates reverse route pricing for each pair
+
     @validator("tariff")
     def validate_tariff_for_service_type(cls, v, values):
-        if values.get("service_type") == "delivery" and v != Tariff.STANDARD:
+        # This validator only runs for legacy single-tariff mode
+        service_type = values.get("service_type")
+        tariff_pricings = values.get("tariff_pricings")
+        if tariff_pricings:
+            return v
+        if service_type == "delivery" and v != Tariff.STANDARD:
             raise ValueError("Delivery pricing supports only standard tariff")
         return v
 
     @root_validator(skip_on_failure=True)
-    def validate_district_inputs(cls, values):
+    def validate_inputs(cls, values):
         from_single = values.get("from_district_id")
         to_single = values.get("to_district_id")
         from_many = values.get("from_district_ids") or []
         to_many = values.get("to_district_ids") or []
+        tariff_pricings = values.get("tariff_pricings") or []
+        base_price = values.get("base_price")
+        service_type = values.get("service_type")
 
         if from_single is None and not from_many:
             raise ValueError("At least one from district is required")
         if to_single is None and not to_many:
             raise ValueError("At least one to district is required")
+
+        # Require pricing payload
+        if not tariff_pricings and base_price is None:
+            raise ValueError("base_price is required when tariff_pricings is not provided")
+
+        # Validate delivery tariffs in bulk mode
+        if service_type == "delivery" and tariff_pricings:
+            invalid_tariffs = [tp.tariff for tp in tariff_pricings if tp.tariff != Tariff.STANDARD]
+            if invalid_tariffs:
+                raise ValueError("Delivery pricing supports only standard tariff")
 
         return values
 
