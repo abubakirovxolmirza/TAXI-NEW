@@ -12,6 +12,10 @@ class EskizClientError(Exception):
     pass
 
 
+class EskizStatusNotReady(EskizClientError):
+    pass
+
+
 class EskizClient:
     def __init__(self) -> None:
         self._token: str | None = None
@@ -52,7 +56,9 @@ class EskizClient:
             raise EskizClientError(f"Eskiz auth request failed: {exc}") from exc
 
         if response.status_code >= 400:
-            raise EskizClientError(f"Eskiz auth failed with status {response.status_code}")
+            raise EskizClientError(
+                f"Eskiz auth failed with status {response.status_code}: {response.text}"
+            )
 
         try:
             payload = response.json()
@@ -85,7 +91,38 @@ class EskizClient:
             timeout=settings.HTTP_TIMEOUT_SECONDS,
         )
 
-    def send_sms(self, phone_digits: str, message: str) -> None:
+    def _get_status_request(self, token: str, message_id: str) -> httpx.Response:
+        return httpx.get(
+            self._build_url(f"message/sms/status_by_id/{message_id}"),
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=settings.HTTP_TIMEOUT_SECONDS,
+        )
+
+    def _validate_send_response(self, response: httpx.Response) -> dict:
+        """Ensure provider responded with success status inside JSON body."""
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+
+        if response.status_code >= 400:
+            raise EskizClientError(
+                f"Eskiz send failed with status {response.status_code}: {response.text}"
+            )
+
+        if payload is None:
+            raise EskizClientError("Eskiz send returned non-JSON response")
+
+        status_value = str(payload.get("status", "")).lower()
+        # Eskiz may return "waiting" while the provider queues the SMS; treat it as non-fatal.
+        if status_value and status_value not in {"success", "sent", "queued", "waiting"}:
+            raise EskizClientError(
+                f"Eskiz send returned status '{status_value}': {payload.get('message') or payload}"
+            )
+
+        return payload
+
+    def send_sms(self, phone_digits: str, message: str) -> dict:
         token = self._get_token()
 
         try:
@@ -101,8 +138,57 @@ class EskizClient:
             except httpx.HTTPError as exc:
                 raise EskizClientError(f"Eskiz retry send failed: {exc}") from exc
 
+        return self._validate_send_response(response)
+
+    def get_message_status(self, message_id: str) -> dict:
+        if not message_id:
+            raise EskizClientError("message_id is required")
+
+        token = self._get_token()
+        try:
+            response = self._get_status_request(token, message_id)
+        except httpx.HTTPError as exc:
+            raise EskizClientError(f"Eskiz status request failed: {exc}") from exc
+
+        if response.status_code == 401:
+            with self._lock:
+                token = self._login()
+            try:
+                response = self._get_status_request(token, message_id)
+            except httpx.HTTPError as exc:
+                raise EskizClientError(f"Eskiz retry status request failed: {exc}") from exc
+
+        if response.status_code == 404:
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = {}
+            message = ""
+            if isinstance(payload, dict):
+                data = payload.get("data")
+                if isinstance(data, dict):
+                    message = str(data.get("message") or "")
+                if not message:
+                    message = str(payload.get("message") or "")
+            if "not found" in message.lower():
+                raise EskizStatusNotReady(
+                    f"Eskiz status is not ready for message {message_id}: {message or 'Not found'}"
+                )
+
         if response.status_code >= 400:
-            raise EskizClientError(f"Eskiz send failed with status {response.status_code}")
+            raise EskizClientError(
+                f"Eskiz status failed with status {response.status_code}: {response.text}"
+            )
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise EskizClientError("Eskiz status returned invalid JSON") from exc
+
+        if not isinstance(payload, dict):
+            raise EskizClientError("Eskiz status returned invalid payload type")
+
+        return payload
 
 
 eskiz_client = EskizClient()

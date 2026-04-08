@@ -211,6 +211,16 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 
+# OTP / SMS Login Schemas
+class SendOtpRequest(BaseModel):
+    telephone: str
+
+
+class VerifyOtpRequest(BaseModel):
+    telephone: str
+    code: str
+
+
 # Region/District Schemas
 class DistrictBase(BaseModel):
     name_uz_latin: str

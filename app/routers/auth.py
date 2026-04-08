@@ -4,12 +4,14 @@ from app.database import get_db
 from app.models import User
 from app.schemas import (
     UserCreate, UserLogin, UserResponse, TokenResponse,
-    UserUpdate, PasswordChange, SetPasswordRequest
+    UserUpdate, PasswordChange, SetPasswordRequest,
+    SendOtpRequest, VerifyOtpRequest,
 )
 from app.auth import (
     get_password_hash, verify_password, create_access_token,
     get_current_user
 )
+from app.services.auth.otp_service import send_sms_otp, verify_sms_otp
 import os
 import shutil
 from app.config import settings
@@ -70,6 +72,35 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "user": user
     }
+
+
+@router.post("/sms/send-code")
+def send_sms_code(request: SendOtpRequest, db: Session = Depends(get_db)):
+    """
+    Send a 6-digit SMS code via Eskiz. Applies cooldown and expiry settings.
+    """
+    result = send_sms_otp(db, request.telephone)
+    delivery_status = str(result.get("delivery_status") or "").upper()
+    provider_status = str(result.get("provider_status") or "").lower()
+    message = "SMS code sent"
+    if delivery_status == "DELIVERED":
+        message = "SMS delivered"
+    elif delivery_status in {"WAITING", "QUEUED", "SENT", "ACCEPTED"} or provider_status in {"waiting", "queued"}:
+        message = "SMS accepted by provider and queued"
+    return {
+        "message": message,
+        **result,
+    }
+
+
+@router.post("/sms/verify-code", response_model=TokenResponse)
+def verify_sms_code(request: VerifyOtpRequest, db: Session = Depends(get_db)):
+    """
+    Verify SMS code and return JWT token. If the phone is not registered,
+    a new active user is created automatically.
+    """
+    auth_data = verify_sms_otp(db, request.telephone, request.code)
+    return auth_data
 
 
 @router.get("/me", response_model=UserResponse)

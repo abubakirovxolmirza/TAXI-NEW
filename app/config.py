@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     ESKIZ_SECRET: Optional[str] = None
     ESKIZ_BASE_URL: str = "https://notify.eskiz.uz/api"
     ESKIZ_FROM: Optional[str] = None
+    ESKIZ_TEST_MODE: bool = False  # If true, use provider test text and skip OTP in SMS body
+    ESKIZ_TEST_TEXT: str = "Bu Eskiz dan test"  # Allowed test message text from provider
+    ESKIZ_DISABLE_SEND: bool = False  # For local dev: don't call provider, just return code in response
+    ESKIZ_MESSAGE_TEMPLATE: str = "Tashkent Go: Tizimga kirish uchun tasdiqlash kodingiz: {code}"
+    ESKIZ_STATUS_POLL_ATTEMPTS: int = 3  # Poll send status briefly to resolve "waiting" responses
+    ESKIZ_STATUS_POLL_INTERVAL_SECONDS: float = 1.0
 
     # OTP
     OTP_SALT: str = "change-this-otp-salt"

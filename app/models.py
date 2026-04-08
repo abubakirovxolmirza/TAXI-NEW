@@ -106,6 +106,19 @@ class User(Base):
     device_tokens = relationship("DeviceToken", back_populates="user", foreign_keys="DeviceToken.user_id")
 
 
+class PhoneOtp(Base):
+    __tablename__ = "phone_otps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    phone = Column(String(20), nullable=False, index=True)
+    code_hash = Column(String(128), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    is_used = Column(Boolean, nullable=False, default=False, server_default="false")
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Permission(Base):
     __tablename__ = "permissions"
 
