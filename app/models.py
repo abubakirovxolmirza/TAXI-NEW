@@ -216,6 +216,16 @@ class Driver(Base):
         return self.user.bonus_ball if self.user else Decimal("0.00")
 
 
+class Car(Base):
+    __tablename__ = "cars"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), nullable=False, index=True)
+    tariff = Column(String(120), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
 class Region(Base):
     __tablename__ = "regions"
     

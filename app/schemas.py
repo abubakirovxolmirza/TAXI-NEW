@@ -260,6 +260,43 @@ class RegionResponse(RegionBase):
         from_attributes = True
 
 
+class CarCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    tariff: str = Field(..., min_length=1, max_length=120)
+
+    @validator("name", "tariff")
+    def validate_not_blank(cls, v):
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("must not be empty")
+        return cleaned
+
+
+class CarUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=120)
+    tariff: Optional[str] = Field(None, min_length=1, max_length=120)
+
+    @validator("name", "tariff")
+    def validate_optional_not_blank(cls, v):
+        if v is None:
+            return v
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("must not be empty")
+        return cleaned
+
+
+class CarResponse(BaseModel):
+    id: int
+    name: str
+    tariff: str
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
 # Taxi Order Schemas
 class TaxiOrderCreate(BaseModel):
     username: str
