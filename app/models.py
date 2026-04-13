@@ -172,6 +172,7 @@ class Driver(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    region_id = Column(Integer, ForeignKey("regions.id"), nullable=True)
     full_name = Column(String(100), nullable=False)
     car_model = Column(String(100), nullable=False)
     car_number = Column(String(20), nullable=False)
@@ -197,6 +198,7 @@ class Driver(Base):
     
     # Relationships
     user = relationship("User", back_populates="driver_profile")
+    region = relationship("Region", foreign_keys=[region_id])
     taxi_orders = relationship("TaxiOrder", back_populates="driver", foreign_keys="TaxiOrder.driver_id")
     delivery_orders = relationship("DeliveryOrder", back_populates="driver", foreign_keys="DeliveryOrder.driver_id")
     ratings_received = relationship("Rating", back_populates="driver", foreign_keys="Rating.driver_id")
@@ -439,6 +441,7 @@ class DriverApplication(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    region_id = Column(Integer, ForeignKey("regions.id"), nullable=True)
     full_name = Column(String(100), nullable=False)
     telephone = Column(String(20), nullable=False)
     car_model = Column(String(100), nullable=False)
@@ -455,6 +458,7 @@ class DriverApplication(Base):
     
     # Relationships
     user = relationship("User", back_populates="driver_application", foreign_keys=[user_id])
+    region = relationship("Region", foreign_keys=[region_id])
     reviewer = relationship("User", foreign_keys=[reviewed_by])
 
 

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract, or_, case
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal
@@ -22,6 +23,11 @@ from app.models import (
     Feedback,
     SystemSettings,
     Rating,
+    Permission,
+    DeviceToken,
+    DriverPhotoControl,
+    OrderAcceptanceHistory,
+    TopUpTransaction,
 )
 from app.schemas import (
     DriverApplicationResponse, DriverApplicationReview,
@@ -44,6 +50,54 @@ from app.utils import (
 from app.localization import get_notification_message
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
+
+
+def _build_user_delete_blockers(db: Session, user_id: int) -> List[str]:
+    blockers: List[str] = []
+
+    user_taxi_orders = db.query(func.count(TaxiOrder.id)).filter(TaxiOrder.user_id == user_id).scalar() or 0
+    if user_taxi_orders:
+        blockers.append(f"{user_taxi_orders} taxi orders")
+
+    user_delivery_orders = (
+        db.query(func.count(DeliveryOrder.id)).filter(DeliveryOrder.user_id == user_id).scalar() or 0
+    )
+    if user_delivery_orders:
+        blockers.append(f"{user_delivery_orders} delivery orders")
+
+    user_ratings = db.query(func.count(Rating.id)).filter(Rating.user_id == user_id).scalar() or 0
+    if user_ratings:
+        blockers.append(f"{user_ratings} ratings")
+
+    driver = db.query(Driver).filter(Driver.user_id == user_id).first()
+    if driver:
+        driver_ratings = db.query(func.count(Rating.id)).filter(Rating.driver_id == driver.id).scalar() or 0
+        if driver_ratings:
+            blockers.append(f"{driver_ratings} driver ratings")
+
+        driver_transactions = (
+            db.query(func.count(BalanceTransaction.id))
+            .filter(BalanceTransaction.driver_id == driver.id)
+            .scalar()
+            or 0
+        )
+        if driver_transactions:
+            blockers.append(f"{driver_transactions} balance transactions")
+
+        driver_topups = db.query(func.count(TopUpTransaction.id)).filter(TopUpTransaction.driver_id == driver.id).scalar() or 0
+        if driver_topups:
+            blockers.append(f"{driver_topups} top-up transactions")
+
+        driver_acceptance_history = (
+            db.query(func.count(OrderAcceptanceHistory.id))
+            .filter(OrderAcceptanceHistory.driver_id == driver.id)
+            .scalar()
+            or 0
+        )
+        if driver_acceptance_history:
+            blockers.append(f"{driver_acceptance_history} order acceptance history records")
+
+    return blockers
 
 
 @router.get("/driver-applications", response_model=List[DriverApplicationResponse])
@@ -96,6 +150,7 @@ def review_application(
 
         if existing_driver:
             existing_driver.full_name = application.full_name
+            existing_driver.region_id = application.region_id
             existing_driver.car_model = application.car_model
             existing_driver.car_number = application.car_number
             existing_driver.license_photo = application.license_photo
@@ -107,6 +162,7 @@ def review_application(
             driver_record = Driver(
                 user_id=application.user_id,
                 full_name=application.full_name,
+                region_id=application.region_id,
                 car_model=application.car_model,
                 car_number=application.car_number,
                 license_photo=application.license_photo,
@@ -1516,13 +1572,91 @@ def delete_user_permanently(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You cannot delete your own account"
         )
+
+    blockers = _build_user_delete_blockers(db, user_id)
+    if blockers:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "User cannot be permanently deleted because related historical records exist: "
+                + ", ".join(blockers)
+                + ". Deactivate this user instead."
+            ),
+        )
     
     user_name = user.name
     user_telephone = user.telephone
-    
-    # Delete user (this will cascade delete related records based on your DB relationships)
-    db.delete(user)
-    db.commit()
+
+    try:
+        driver = db.query(Driver).filter(Driver.user_id == user_id).first()
+        if driver:
+            db.query(TaxiOrder).filter(TaxiOrder.driver_id == driver.id).update(
+                {TaxiOrder.driver_id: None},
+                synchronize_session=False,
+            )
+            db.query(DeliveryOrder).filter(DeliveryOrder.driver_id == driver.id).update(
+                {DeliveryOrder.driver_id: None},
+                synchronize_session=False,
+            )
+            db.query(Notification).filter(Notification.driver_id == driver.id).delete(
+                synchronize_session=False
+            )
+            db.query(DriverPhotoControl).filter(DriverPhotoControl.driver_id == driver.id).delete(
+                synchronize_session=False
+            )
+            db.delete(driver)
+
+        # Clear nullable references to this user from historical records.
+        db.query(TaxiOrder).filter(TaxiOrder.bonus_user_id == user_id).update(
+            {TaxiOrder.bonus_user_id: None}, synchronize_session=False
+        )
+        db.query(TaxiOrder).filter(TaxiOrder.cancelled_by_user_id == user_id).update(
+            {TaxiOrder.cancelled_by_user_id: None}, synchronize_session=False
+        )
+        db.query(DeliveryOrder).filter(DeliveryOrder.bonus_user_id == user_id).update(
+            {DeliveryOrder.bonus_user_id: None}, synchronize_session=False
+        )
+        db.query(DeliveryOrder).filter(DeliveryOrder.cancelled_by_user_id == user_id).update(
+            {DeliveryOrder.cancelled_by_user_id: None}, synchronize_session=False
+        )
+        db.query(DriverApplication).filter(DriverApplication.reviewed_by == user_id).update(
+            {DriverApplication.reviewed_by: None}, synchronize_session=False
+        )
+        db.query(BalanceTransaction).filter(BalanceTransaction.admin_id == user_id).update(
+            {BalanceTransaction.admin_id: None}, synchronize_session=False
+        )
+        db.query(Feedback).filter(Feedback.user_id == user_id).update(
+            {Feedback.user_id: None}, synchronize_session=False
+        )
+        db.query(SystemSettings).filter(SystemSettings.updated_by == user_id).update(
+            {SystemSettings.updated_by: None}, synchronize_session=False
+        )
+        db.query(Notification).filter(Notification.user_id == user_id).delete(
+            synchronize_session=False
+        )
+
+        # Delete records directly owned by this user.
+        db.query(DeviceToken).filter(DeviceToken.user_id == user_id).delete(
+            synchronize_session=False
+        )
+        db.query(Permission).filter(Permission.user_id == user_id).delete(
+            synchronize_session=False
+        )
+        db.query(DriverApplication).filter(DriverApplication.user_id == user_id).delete(
+            synchronize_session=False
+        )
+
+        db.delete(user)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "User cannot be permanently deleted because related records still reference this user. "
+                "Deactivate this user instead."
+            ),
+        )
     
     return {
         "success": True,

@@ -1,7 +1,8 @@
 from uuid import uuid4
+from decimal import Decimal
 
 from app.auth import get_password_hash
-from app.models import User, UserRole
+from app.models import User, UserRole, Region, District, TaxiOrder
 
 
 def _create_user(db_session, role: UserRole, password: str, name: str = "Test User"):
@@ -72,3 +73,72 @@ def test_non_admin_cannot_get_user_by_id(client, db_session):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Not authorized. Admin access required."
+
+
+def test_superadmin_can_delete_user_without_history(client, db_session):
+    superadmin_password = "SuperAdminPass123"
+    superadmin = _create_user(db_session, UserRole.SUPERADMIN, superadmin_password, name="Superadmin")
+    target = _create_user(db_session, UserRole.USER, "UserPass123", name="Delete Target")
+
+    token = _login_token(client, superadmin.telephone, superadmin_password)
+    response = client.delete(
+        f"/api/admin/users/{target.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert db_session.query(User).filter(User.id == target.id).first() is None
+
+
+def test_superadmin_delete_user_with_orders_returns_400(client, db_session):
+    superadmin_password = "SuperAdminPass123"
+    superadmin = _create_user(db_session, UserRole.SUPERADMIN, superadmin_password, name="Superadmin")
+    target = _create_user(db_session, UserRole.USER, "UserPass123", name="Order Owner")
+
+    region = Region(
+        name_uz_latin="Toshkent",
+        name_uz_cyrillic="Toshkent",
+        name_russian="Tashkent",
+        is_active=True,
+    )
+    db_session.add(region)
+    db_session.commit()
+    db_session.refresh(region)
+
+    district = District(
+        region_id=region.id,
+        name_uz_latin="Yunusobod",
+        name_uz_cyrillic="Yunusobod",
+        name_russian="Yunusabad",
+        is_active=True,
+    )
+    db_session.add(district)
+    db_session.commit()
+    db_session.refresh(district)
+
+    order = TaxiOrder(
+        user_id=target.id,
+        username=target.name,
+        telephone=target.telephone,
+        from_region_id=region.id,
+        from_district_id=district.id,
+        to_region_id=region.id,
+        to_district_id=district.id,
+        passengers=1,
+        date="01.01.2026",
+        time_start="10:00",
+        time_end="11:00",
+        price=Decimal("15000"),
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    token = _login_token(client, superadmin.telephone, superadmin_password)
+    response = client.delete(
+        f"/api/admin/users/{target.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert "related historical records exist" in response.json()["detail"]

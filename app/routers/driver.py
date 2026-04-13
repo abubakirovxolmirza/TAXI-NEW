@@ -20,6 +20,7 @@ from app.models import (
     Driver,
     DriverApplication,
     OrderStatus,
+    Region,
     TaxiOrder,
     Tariff,
     User,
@@ -58,6 +59,10 @@ _driver_cancelled_orders: dict[str, dict[int, Set[int]]] = {
     "taxi": {},
     "delivery": {},
 }
+
+DEFAULT_DRIVER_REGION_LATIN_KEYWORD = "farg"
+DEFAULT_DRIVER_REGION_CYRILLIC_KEYWORD = "фар"
+DEFAULT_DRIVER_REGION_RUSSIAN_KEYWORD = "ферган"
 
 
 def _normalize_pagination(limit: Optional[int], offset: Optional[int]) -> tuple[int, int]:
@@ -99,6 +104,50 @@ def _parse_tariffs_csv(raw_tariffs: Optional[str]) -> Set[Tariff]:
                 detail="Invalid tariff filter. Allowed values: standard, comfort, comfort_plus, business",
             )
     return parsed
+
+
+def _resolve_default_driver_region_id(db: Session) -> Optional[int]:
+    """Resolve default driver region id (prefer Farg'ona, fallback first active region)."""
+    fargona_region = (
+        db.query(Region.id)
+        .filter(
+            Region.is_active == True,
+            or_(
+                func.lower(Region.name_uz_latin).like(f"%{DEFAULT_DRIVER_REGION_LATIN_KEYWORD}%"),
+                func.lower(Region.name_uz_cyrillic).like(f"%{DEFAULT_DRIVER_REGION_CYRILLIC_KEYWORD}%"),
+                func.lower(Region.name_russian).like(f"%{DEFAULT_DRIVER_REGION_RUSSIAN_KEYWORD}%"),
+            ),
+        )
+        .order_by(Region.id.asc())
+        .first()
+    )
+    if fargona_region:
+        return fargona_region[0]
+
+    fallback_region = (
+        db.query(Region.id)
+        .filter(Region.is_active == True)
+        .order_by(Region.id.asc())
+        .first()
+    )
+    return fallback_region[0] if fallback_region else None
+
+
+def _validate_active_region(db: Session, region_id: int) -> int:
+    region = (
+        db.query(Region.id)
+        .filter(
+            Region.id == region_id,
+            Region.is_active == True,
+        )
+        .first()
+    )
+    if not region:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Selected region not found or inactive",
+        )
+    return region[0]
 
 
 def _get_local_cancelled(driver_id: int, order_type: str) -> Set[int]:
@@ -866,6 +915,17 @@ async def apply_as_driver(
     db: Session = Depends(get_db)
 ):
     """Apply to become a driver"""
+    resolved_region_id: Optional[int] = application_data.region_id
+    if resolved_region_id is not None:
+        resolved_region_id = _validate_active_region(db, resolved_region_id)
+    else:
+        resolved_region_id = _resolve_default_driver_region_id(db)
+        if resolved_region_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active regions found. Driver region cannot be assigned",
+            )
+
     # Check if user already has an active driver profile
     if current_user.driver_profile and current_user.role == UserRole.DRIVER:
         raise HTTPException(
@@ -886,6 +946,7 @@ async def apply_as_driver(
             )
         # Update existing application and reset status to pending
         existing_application.full_name = application_data.full_name
+        existing_application.region_id = resolved_region_id
         existing_application.car_model = application_data.car_model
         existing_application.car_number = application_data.car_number
         existing_application.license_photo = application_data.license_photo
@@ -904,6 +965,7 @@ async def apply_as_driver(
     new_application = DriverApplication(
         user_id=current_user.id,
         full_name=application_data.full_name,
+        region_id=resolved_region_id,
         telephone=current_user.telephone,
         car_model=application_data.car_model,
         car_number=application_data.car_number,
@@ -1040,6 +1102,9 @@ def update_driver_profile(
     
     if driver_update.full_name is not None:
         driver.full_name = driver_update.full_name
+
+    if driver_update.region_id is not None:
+        driver.region_id = _validate_active_region(db, driver_update.region_id)
     
     if driver_update.car_model is not None:
         driver.car_model = driver_update.car_model

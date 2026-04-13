@@ -520,6 +520,7 @@ class DeliveryOrderResponse(BaseModel):
 # Driver Schemas
 class DriverApplicationCreate(BaseModel):
     full_name: str
+    region_id: Optional[int] = None
     car_model: str
     car_number: str
     license_photo: str  # file path after upload
@@ -531,6 +532,7 @@ class DriverApplicationResponse(BaseModel):
     id: int
     user_id: int
     full_name: str
+    region_id: Optional[int] = None
     telephone: str
     car_model: str
     car_number: str
@@ -553,6 +555,7 @@ class DriverApplicationReview(BaseModel):
 
 class DriverUpdate(BaseModel):
     full_name: Optional[str] = None
+    region_id: Optional[int] = None
     car_model: Optional[str] = None
     car_number: Optional[str] = None
     car_photo: Optional[str] = None
@@ -567,6 +570,7 @@ class DriverResponse(BaseModel):
     id: int
     user_id: int
     full_name: str
+    region_id: Optional[int] = None
     telephone: Optional[str] = None
     profile_picture: Optional[str] = None
     bonus_ball: Decimal
