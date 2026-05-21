@@ -970,10 +970,7 @@ def _adjust_price_value(value: Optional[Decimal], amount: Decimal, operation: st
         return value + amount
     updated_value = value - amount
     if updated_value < 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Price adjustment would produce negative values",
-        )
+        return value
     return updated_value
 
 
