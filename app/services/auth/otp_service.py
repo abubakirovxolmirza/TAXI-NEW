@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 OTP_LENGTH = 6
+TEST_OTP_PHONE = "+998935204050"
+TEST_OTP_CODE = "123321"
 PENDING_DELIVERY_STATUSES = {"WAITING", "SENT", "QUEUED", "ACCEPTED"}
 FAILED_DELIVERY_STATUSES = {
     "UNDELIVERED",
@@ -60,6 +62,30 @@ def generate_otp_code() -> str:
 def hash_otp_code(normalized_phone: str, code: str) -> str:
     payload = f"{normalized_phone}:{code}:{settings.OTP_SALT}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _issue_sms_auth_token(db: Session, normalized_phone: str) -> dict:
+    user = db.query(User).filter(User.telephone == normalized_phone).first()
+    if not user:
+        # Create a placeholder password so bcrypt verification doesn't fail before the user sets one.
+        placeholder_password = get_password_hash(secrets.token_hex(8))
+        user = User(
+            telephone=normalized_phone,
+            name=normalized_phone,
+            hashed_password=placeholder_password,
+            is_active=True,
+        )
+        db.add(user)
+
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(data={"sub": str(user.id)})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user,
+    }
 
 
 def _extract_delivery_status(payload: dict | None) -> str | None:
@@ -205,6 +231,9 @@ def verify_sms_otp(db: Session, phone: str, code: str) -> dict:
     if not code or len(code) != OTP_LENGTH or not code.isdigit():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_code")
 
+    if normalized_phone == TEST_OTP_PHONE and code == TEST_OTP_CODE:
+        return _issue_sms_auth_token(db, normalized_phone)
+
     otp = (
         db.query(PhoneOtp)
         .filter(
@@ -233,24 +262,4 @@ def verify_sms_otp(db: Session, phone: str, code: str) -> dict:
     otp.is_used = True
     otp.used_at = now
 
-    user = db.query(User).filter(User.telephone == normalized_phone).first()
-    if not user:
-        # Create a placeholder password so bcrypt verification doesn't fail before the user sets one.
-        placeholder_password = get_password_hash(secrets.token_hex(8))
-        user = User(
-            telephone=normalized_phone,
-            name=normalized_phone,
-            hashed_password=placeholder_password,
-            is_active=True,
-        )
-        db.add(user)
-
-    db.commit()
-    db.refresh(user)
-
-    access_token = create_access_token(data={"sub": str(user.id)})
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": user,
-    }
+    return _issue_sms_auth_token(db, normalized_phone)

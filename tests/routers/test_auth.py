@@ -55,3 +55,16 @@ def test_login_invalid_credentials(client):
         json={"telephone": "+998000000000", "password": "wrongpass"},
     )
     assert response.status_code == 401
+
+
+def test_sms_verify_test_phone_returns_token_without_otp_record(client):
+    response = client.post(
+        "/api/auth/sms/verify-code",
+        json={"telephone": "+998935204050", "code": "123321"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "access_token" in body
+    assert body["token_type"] == "bearer"
+    assert body["user"]["telephone"] == "+998935204050"
