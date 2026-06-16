@@ -23,7 +23,7 @@ def _reset_service_fee_percentage(db_session) -> None:
     db_session.commit()
 
 
-def test_calculate_taxi_price_scales_with_passengers(db_session):
+def test_calculate_taxi_price_applies_fixed_discount_from_total(db_session):
     region_a = _create_region(db_session, "A")
     region_b = _create_region(db_session, "B")
 
@@ -32,10 +32,10 @@ def test_calculate_taxi_price_scales_with_passengers(db_session):
         to_region_id=region_b.id,
         service_type="taxi",
         base_price=Decimal("50000.00"),
-        discount_1_passenger=Decimal("5.00"),
-        discount_2_passengers=Decimal("10.00"),
-        discount_3_passengers=Decimal("15.00"),
-        discount_full_car=Decimal("20.00"),
+        discount_1_passenger=Decimal("5000.00"),
+        discount_2_passengers=Decimal("10000.00"),
+        discount_3_passengers=Decimal("15000.00"),
+        discount_full_car=Decimal("20000.00"),
         is_active=True,
     )
     db_session.add(pricing)

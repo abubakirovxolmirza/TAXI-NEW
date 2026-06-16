@@ -273,10 +273,10 @@ class TestDistrictPricing:
                 "base_price": "15000.00",
                 "front_seat_price": "14000.00",
                 "back_seat_price": "16000.00",
-                "discount_1_passenger": "10.00",
-                "discount_2_passengers": "15.00",
-                "discount_3_passengers": "20.00",
-                "discount_full_car": "25.00"
+                "discount_1_passenger": "1000.00",
+                "discount_2_passengers": "1500.00",
+                "discount_3_passengers": "2000.00",
+                "discount_full_car": "2500.00"
             }
         )
         assert response.status_code == 201
@@ -310,10 +310,10 @@ class TestDistrictPricing:
                 "base_price": "18000.00",
                 "front_seat_price": "17000.00",
                 "back_seat_price": "19000.00",
-                "discount_1_passenger": "5.00",
-                "discount_2_passengers": "10.00",
-                "discount_3_passengers": "15.00",
-                "discount_full_car": "20.00"
+                "discount_1_passenger": "500.00",
+                "discount_2_passengers": "1000.00",
+                "discount_3_passengers": "1500.00",
+                "discount_full_car": "2000.00"
             }
         )
 
@@ -398,7 +398,7 @@ class TestDistrictPricing:
             headers={"Authorization": f"Bearer {admin_token}"},
             json={
                 "base_price": "18000.00",
-                "discount_1_passenger": "12.00"
+                "discount_1_passenger": "1200.00"
             }
         )
         assert response.status_code == 200

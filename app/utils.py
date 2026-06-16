@@ -194,7 +194,7 @@ def calculate_taxi_price(
     elif seat_type == SeatType.BACK and pricing.back_seat_price:
         base_price = pricing.back_seat_price
 
-    # Apply discount based on passengers
+    # Apply fixed discount amount once from the total route price.
     discount = Decimal("0.00")
     if total_passengers == 1:
         discount = pricing.discount_1_passenger or Decimal("0.00")
@@ -205,8 +205,7 @@ def calculate_taxi_price(
     elif total_passengers >= 4:
         discount = pricing.discount_full_car or Decimal("0.00")
 
-    effective_multiplier = (Decimal("100.00") - discount) / Decimal("100.00")
-    total_price = base_price * effective_multiplier * Decimal(total_passengers)
+    total_price = (base_price * Decimal(total_passengers)) - discount
     if total_price < Decimal("0.00"):
         total_price = Decimal("0.00")
 

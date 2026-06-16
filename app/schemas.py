@@ -755,10 +755,10 @@ class PricingCreate(BaseModel):
     base_price: Decimal
     front_seat_price: Optional[Decimal] = None
     back_seat_price: Optional[Decimal] = None
-    discount_1_passenger: Decimal = Decimal("0.00")
-    discount_2_passengers: Decimal = Decimal("0.00")
-    discount_3_passengers: Decimal = Decimal("0.00")
-    discount_full_car: Decimal = Decimal("0.00")
+    discount_1_passenger: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
+    discount_2_passengers: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
+    discount_3_passengers: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
+    discount_full_car: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
 
     @validator("tariff")
     def validate_tariff_for_service_type(cls, v, values):
@@ -772,10 +772,10 @@ class PricingUpdate(BaseModel):
     base_price: Optional[Decimal] = None
     front_seat_price: Optional[Decimal] = None
     back_seat_price: Optional[Decimal] = None
-    discount_1_passenger: Optional[Decimal] = None
-    discount_2_passengers: Optional[Decimal] = None
-    discount_3_passengers: Optional[Decimal] = None
-    discount_full_car: Optional[Decimal] = None
+    discount_1_passenger: Optional[Decimal] = Field(None, ge=0, description="Fixed discount amount from total price")
+    discount_2_passengers: Optional[Decimal] = Field(None, ge=0, description="Fixed discount amount from total price")
+    discount_3_passengers: Optional[Decimal] = Field(None, ge=0, description="Fixed discount amount from total price")
+    discount_full_car: Optional[Decimal] = Field(None, ge=0, description="Fixed discount amount from total price")
 
 
 class PricingResponse(BaseModel):
@@ -884,10 +884,10 @@ class DistrictTariffPricing(BaseModel):
     base_price: Decimal
     front_seat_price: Optional[Decimal] = None
     back_seat_price: Optional[Decimal] = None
-    discount_1_passenger: Decimal = Decimal("0.00")
-    discount_2_passengers: Decimal = Decimal("0.00")
-    discount_3_passengers: Decimal = Decimal("0.00")
-    discount_full_car: Decimal = Decimal("0.00")
+    discount_1_passenger: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
+    discount_2_passengers: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
+    discount_3_passengers: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
+    discount_full_car: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
 
 
 # District Pricing Schemas
@@ -901,10 +901,10 @@ class DistrictPricingCreate(BaseModel):
     base_price: Optional[Decimal] = None
     front_seat_price: Optional[Decimal] = None
     back_seat_price: Optional[Decimal] = None
-    discount_1_passenger: Decimal = Decimal("0.00")
-    discount_2_passengers: Decimal = Decimal("0.00")
-    discount_3_passengers: Decimal = Decimal("0.00")
-    discount_full_car: Decimal = Decimal("0.00")
+    discount_1_passenger: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
+    discount_2_passengers: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
+    discount_3_passengers: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
+    discount_full_car: Decimal = Field(Decimal("0.00"), ge=0, description="Fixed discount amount from total price")
     # New options
     tariff_pricings: Optional[List[DistrictTariffPricing]] = None  # supply many tariffs in one call
     both_directions: bool = False  # when True, also creates reverse route pricing for each pair
@@ -953,10 +953,10 @@ class DistrictPricingUpdate(BaseModel):
     base_price: Optional[Decimal] = None
     front_seat_price: Optional[Decimal] = None
     back_seat_price: Optional[Decimal] = None
-    discount_1_passenger: Optional[Decimal] = None
-    discount_2_passengers: Optional[Decimal] = None
-    discount_3_passengers: Optional[Decimal] = None
-    discount_full_car: Optional[Decimal] = None
+    discount_1_passenger: Optional[Decimal] = Field(None, ge=0, description="Fixed discount amount from total price")
+    discount_2_passengers: Optional[Decimal] = Field(None, ge=0, description="Fixed discount amount from total price")
+    discount_3_passengers: Optional[Decimal] = Field(None, ge=0, description="Fixed discount amount from total price")
+    discount_full_car: Optional[Decimal] = Field(None, ge=0, description="Fixed discount amount from total price")
 
 
 class DistrictPricingResponse(BaseModel):

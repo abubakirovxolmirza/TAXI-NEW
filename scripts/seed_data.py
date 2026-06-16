@@ -118,10 +118,10 @@ def seed_pricing(db: Session):
             "to_region": 2,
             "service_type": "taxi",
             "base_price": Decimal("50000.00"),
-            "discount_1": Decimal("5.00"),
-            "discount_2": Decimal("10.00"),
-            "discount_3": Decimal("15.00"),
-            "discount_full": Decimal("20.00")
+            "discount_1": Decimal("5000.00"),
+            "discount_2": Decimal("10000.00"),
+            "discount_3": Decimal("15000.00"),
+            "discount_full": Decimal("20000.00")
         },
         {
             "from_region": 1,
@@ -138,10 +138,10 @@ def seed_pricing(db: Session):
             "to_region": 1,
             "service_type": "taxi",
             "base_price": Decimal("50000.00"),
-            "discount_1": Decimal("5.00"),
-            "discount_2": Decimal("10.00"),
-            "discount_3": Decimal("15.00"),
-            "discount_full": Decimal("20.00")
+            "discount_1": Decimal("5000.00"),
+            "discount_2": Decimal("10000.00"),
+            "discount_3": Decimal("15000.00"),
+            "discount_full": Decimal("20000.00")
         }
     ]
     

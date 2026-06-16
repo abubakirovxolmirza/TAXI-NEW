@@ -152,7 +152,7 @@ def calculate_price(
         elif selected_seat == SeatType.BACK and pricing.back_seat_price:
             base_price = pricing.back_seat_price
     
-    # Apply discount for taxi service based on passengers
+    # Apply fixed discount amount once from the total taxi price based on passengers
     if service_type == "taxi":
         total_passengers = passengers if passengers and passengers > 0 else 1
         if total_passengers == 1:
@@ -166,12 +166,10 @@ def calculate_price(
         else:
             discount = Decimal("0")
         
-        discount_multiplier = Decimal("1") - (Decimal(discount) / Decimal("100"))
-        
-        # Calculate price per person after discount
-        price_per_person = base_price * discount_multiplier
-        # Total price for all passengers
-        total_price = price_per_person * total_passengers
+        total_price = (base_price * total_passengers) - discount
+        if total_price < Decimal("0"):
+            total_price = Decimal("0")
+        price_per_person = total_price / total_passengers
         
         return {
             "pricing_level": pricing_level,
@@ -184,6 +182,7 @@ def calculate_price(
             "base_price": str(base_price),
             "passengers": total_passengers,
             "discount_percentage": str(discount),
+            "discount_amount": str(discount),
             "price_per_person": str(price_per_person),
             "total_price": str(total_price),
             "seat_type": selected_seat.value if selected_seat else None

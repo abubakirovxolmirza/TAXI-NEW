@@ -104,10 +104,10 @@ curl -X POST "http://localhost:8000/api/admin/regions/district-pricing" \
     "base_price": "15000.00",
     "front_seat_price": "14000.00",
     "back_seat_price": "16000.00",
-    "discount_1_passenger": "10.00",
-    "discount_2_passengers": "15.00",
-    "discount_3_passengers": "20.00",
-    "discount_full_car": "25.00"
+    "discount_1_passenger": "1000.00",
+    "discount_2_passengers": "1500.00",
+    "discount_3_passengers": "2000.00",
+    "discount_full_car": "2500.00"
   }'
 ```
 
@@ -160,10 +160,10 @@ CREATE TABLE district_pricing (
     base_price NUMERIC(10, 2) NOT NULL,
     front_seat_price NUMERIC(10, 2),
     back_seat_price NUMERIC(10, 2),
-    discount_1_passenger NUMERIC(5, 2) DEFAULT 0.00,
-    discount_2_passengers NUMERIC(5, 2) DEFAULT 0.00,
-    discount_3_passengers NUMERIC(5, 2) DEFAULT 0.00,
-    discount_full_car NUMERIC(5, 2) DEFAULT 0.00,
+    discount_1_passenger NUMERIC(10, 2) DEFAULT 0.00,
+    discount_2_passengers NUMERIC(10, 2) DEFAULT 0.00,
+    discount_3_passengers NUMERIC(10, 2) DEFAULT 0.00,
+    discount_full_car NUMERIC(10, 2) DEFAULT 0.00,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE

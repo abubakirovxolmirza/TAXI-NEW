@@ -270,10 +270,10 @@ class DistrictPricing(Base):
     base_price = Column(Numeric(10, 2), nullable=False)
     front_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for front seat
     back_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for back seat
-    discount_1_passenger = Column(Numeric(5, 2), default=0.00)  # percentage
-    discount_2_passengers = Column(Numeric(5, 2), default=0.00)
-    discount_3_passengers = Column(Numeric(5, 2), default=0.00)
-    discount_full_car = Column(Numeric(5, 2), default=0.00)
+    discount_1_passenger = Column(Numeric(10, 2), default=0.00)  # fixed amount from total price
+    discount_2_passengers = Column(Numeric(10, 2), default=0.00)
+    discount_3_passengers = Column(Numeric(10, 2), default=0.00)
+    discount_full_car = Column(Numeric(10, 2), default=0.00)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -477,10 +477,10 @@ class Pricing(Base):
     base_price = Column(Numeric(10, 2), nullable=False)
     front_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for front seat
     back_seat_price = Column(Numeric(10, 2), nullable=True)  # Price for back seat
-    discount_1_passenger = Column(Numeric(5, 2), default=0.00)  # percentage
-    discount_2_passengers = Column(Numeric(5, 2), default=0.00)
-    discount_3_passengers = Column(Numeric(5, 2), default=0.00)
-    discount_full_car = Column(Numeric(5, 2), default=0.00)
+    discount_1_passenger = Column(Numeric(10, 2), default=0.00)  # fixed amount from total price
+    discount_2_passengers = Column(Numeric(10, 2), default=0.00)
+    discount_3_passengers = Column(Numeric(10, 2), default=0.00)
+    discount_full_car = Column(Numeric(10, 2), default=0.00)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
